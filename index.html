@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Página Inicial</title>
+    <title>Organizador de Compra de Apto</title>
     <style>
       :root {
-        color-scheme: light dark;
+        color-scheme: light;
       }
 
       * {
@@ -16,72 +16,143 @@
       body {
         margin: 0;
         min-height: 100vh;
-        display: grid;
-        place-items: center;
+        padding: 2rem 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
           Arial, sans-serif;
-        background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+        background:
+          radial-gradient(circle at 15% 20%, #dbeafe 0%, transparent 35%),
+          radial-gradient(circle at 80% 0%, #e0e7ff 0%, transparent 30%),
+          #f8fafc;
+        color: #0f172a;
       }
 
       main {
-        width: min(680px, 92vw);
-        background: rgba(255, 255, 255, 0.85);
-        backdrop-filter: blur(6px);
-        border-radius: 16px;
-        padding: 2rem;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.12);
-        text-align: center;
+        width: min(760px, 100%);
+        border-radius: 20px;
+        padding: 2.2rem;
+        background: #ffffff;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
       }
 
       h1 {
-        margin: 0 0 0.75rem;
-        font-size: clamp(1.8rem, 3vw, 2.4rem);
+        margin: 0;
+        font-size: clamp(2rem, 3.2vw, 2.7rem);
+        line-height: 1.1;
       }
 
-      p {
-        margin: 0 0 1.25rem;
-        font-size: 1rem;
+      .subtitulo {
+        margin: 1rem 0 0;
+        max-width: 56ch;
+        color: #334155;
+        font-size: 1.05rem;
         line-height: 1.6;
       }
 
+      .acoes {
+        margin-top: 1.6rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
       button {
-        border: 0;
-        border-radius: 10px;
-        padding: 0.7rem 1rem;
-        font-size: 1rem;
+        border: none;
+        border-radius: 12px;
+        padding: 0.8rem 1.15rem;
+        font-size: 0.98rem;
         font-weight: 600;
         cursor: pointer;
         background: #2563eb;
-        color: #fff;
+        color: #ffffff;
+        transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
       }
 
       button:hover {
-        filter: brightness(1.05);
+        transform: translateY(-1px);
+        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+      }
+
+      button:active {
+        transform: translateY(0);
+      }
+
+      .ghost {
+        background: #ffffff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+      }
+
+      .ghost:hover {
+        filter: brightness(0.98);
+        box-shadow: 0 8px 16px rgba(59, 130, 246, 0.16);
       }
 
       #mensagem {
-        margin-top: 1rem;
-        font-weight: 600;
+        margin-top: 1.2rem;
+        min-height: 1.4rem;
+        color: #0f766e;
+        font-weight: 700;
+      }
+
+      .tag {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 1rem;
+        padding: 0.35rem 0.7rem;
+        border-radius: 999px;
+        background: #eff6ff;
+        color: #1d4ed8;
+        font-size: 0.84rem;
+        font-weight: 700;
+        letter-spacing: 0.01em;
+      }
+
+      @media (max-width: 640px) {
+        main {
+          padding: 1.5rem;
+        }
+
+        .acoes {
+          flex-direction: column;
+        }
+
+        button {
+          width: 100%;
+        }
       }
     </style>
   </head>
   <body>
     <main>
-      <h1>Projeto pronto 🚀</h1>
-      <p>
-        Esta é uma página web simples para iniciar seu projeto. Você pode editar este arquivo e
-        evoluir para o layout que quiser.
+      <span class="tag">🏠 Organizador de Compra</span>
+      <h1>Planeje a compra do seu apartamento com clareza</h1>
+      <p class="subtitulo">
+        Centralize sua jornada de compra em um só lugar: orçamento, documentos, imóveis visitados
+        e próximas etapas para fechar negócio com segurança.
       </p>
-      <button id="acao">Clique aqui</button>
+      <div class="acoes">
+        <button id="acao">Ver próximos passos</button>
+        <button class="ghost" id="limpar">Limpar</button>
+      </div>
       <p id="mensagem" aria-live="polite"></p>
     </main>
 
     <script>
       const botao = document.getElementById("acao");
+      const limpar = document.getElementById("limpar");
       const mensagem = document.getElementById("mensagem");
 
       botao.addEventListener("click", () => {
-        mensagem.textContent = "Funcionando perfeitamente!";
+        mensagem.textContent = "Próximo passo: defina seu teto de orçamento e organize os documentos iniciais.";
+      });
+
+      limpar.addEventListener("click", () => {
+        mensagem.textContent = "";
       });
     </script>
   </body>
