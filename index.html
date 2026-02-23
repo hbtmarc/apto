@@ -4,156 +4,553 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Organizador de Compra de Apto</title>
-    <style>
-      :root {
-        color-scheme: light;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        min-height: 100vh;
-        padding: 2rem 1rem;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-          Arial, sans-serif;
-        background:
-          radial-gradient(circle at 15% 20%, #dbeafe 0%, transparent 35%),
-          radial-gradient(circle at 80% 0%, #e0e7ff 0%, transparent 30%),
-          #f8fafc;
-        color: #0f172a;
-      }
-
-      main {
-        width: min(760px, 100%);
-        border-radius: 20px;
-        padding: 2.2rem;
-        background: #ffffff;
-        border: 1px solid #e2e8f0;
-        box-shadow: 0 24px 50px rgba(15, 23, 42, 0.12);
-      }
-
-      h1 {
-        margin: 0;
-        font-size: clamp(2rem, 3.2vw, 2.7rem);
-        line-height: 1.1;
-      }
-
-      .subtitulo {
-        margin: 1rem 0 0;
-        max-width: 56ch;
-        color: #334155;
-        font-size: 1.05rem;
-        line-height: 1.6;
-      }
-
-      .acoes {
-        margin-top: 1.6rem;
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-
-      button {
-        border: none;
-        border-radius: 12px;
-        padding: 0.8rem 1.15rem;
-        font-size: 0.98rem;
-        font-weight: 600;
-        cursor: pointer;
-        background: #2563eb;
-        color: #ffffff;
-        transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
-      }
-
-      button:hover {
-        transform: translateY(-1px);
-        box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
-      }
-
-      button:active {
-        transform: translateY(0);
-      }
-
-      .ghost {
-        background: #ffffff;
-        color: #1d4ed8;
-        border: 1px solid #bfdbfe;
-      }
-
-      .ghost:hover {
-        filter: brightness(0.98);
-        box-shadow: 0 8px 16px rgba(59, 130, 246, 0.16);
-      }
-
-      #mensagem {
-        margin-top: 1.2rem;
-        min-height: 1.4rem;
-        color: #0f766e;
-        font-weight: 700;
-      }
-
-      .tag {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.45rem;
-        margin-bottom: 1rem;
-        padding: 0.35rem 0.7rem;
-        border-radius: 999px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 0.84rem;
-        font-weight: 700;
-        letter-spacing: 0.01em;
-      }
-
-      @media (max-width: 640px) {
-        main {
-          padding: 1.5rem;
-        }
-
-        .acoes {
-          flex-direction: column;
-        }
-
-        button {
-          width: 100%;
-        }
-      }
-    </style>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
-    <main>
-      <span class="tag">🏠 Organizador de Compra</span>
-      <h1>Planeje a compra do seu apartamento com clareza</h1>
-      <p class="subtitulo">
-        Centralize sua jornada de compra em um só lugar: orçamento, documentos, imóveis visitados
-        e próximas etapas para fechar negócio com segurança.
-      </p>
-      <div class="acoes">
-        <button id="acao">Ver próximos passos</button>
-        <button class="ghost" id="limpar">Limpar</button>
+    <div class="context-bar" role="status" aria-live="polite">
+      <div class="context-wrap">
+        <div class="context-item" title="Projeto atualmente selecionado para cadastro e análise.">
+          <strong>Projeto:</strong>
+          <span id="context-project-name">Não selecionado</span>
+          <a class="link-action" href="#projects" title="Abrir aba Projetos para selecionar ou criar outro projeto.">Trocar</a>
+        </div>
+        <div class="context-item" title="Simulação atualmente selecionada para editar e recalcular resultados.">
+          <strong>Simulação:</strong>
+          <span id="context-simulation-name">Não selecionada</span>
+          <a class="link-action" href="#simulations" title="Abrir aba Simulações para trocar a simulação ativa.">Trocar</a>
+        </div>
       </div>
-      <p id="mensagem" aria-live="polite"></p>
+    </div>
+
+    <header class="topo">
+      <h1>Organizador de Compra de Apto</h1>
+      <p>Simule compra de apartamento na planta com visão financeira, riscos e checklist jurídico.</p>
+    </header>
+
+    <nav class="menu" aria-label="Navegação principal">
+      <a href="#projects" data-route="projects" title="Cadastre empreendimentos (nome, cidade, UF e construtora).">Projetos</a>
+      <a href="#simulations" data-route="simulations" title="Crie cenários com datas, preço-base e tolerância contratual.">Simulações</a>
+      <a href="#editor" data-route="editor" title="Configure fluxo de pagamentos, índice, financiamento, custos extras e checklist.">Editor</a>
+      <a href="#results" data-route="results" title="Veja totais, timeline mensal, riscos e exportação/importação do banco.">Resultados</a>
+      <a href="#faq" data-route="faq" title="Guia prático de pontos críticos para fechar o negócio com segurança.">FAQ</a>
+    </nav>
+
+    <main class="container">
+      <section id="projects" class="view" aria-labelledby="titulo-projects">
+        <h2 id="titulo-projects">Projetos <span class="help-hover" title="Aqui você registra os dados do empreendimento. Cada projeto pode ter várias simulações.">ⓘ</span></h2>
+        <p class="section-help">Crie e selecione um projeto para começar o fluxo completo.</p>
+
+        <div id="projects-empty-state" class="empty-state" hidden>
+          <p>Nenhum projeto encontrado.</p>
+          <a class="btn-primary-link" href="#projects">Criar projeto</a>
+        </div>
+
+        <form id="project-form" class="card-block" novalidate>
+          <input type="hidden" id="project-id" name="projectId" />
+
+          <p>
+            <label for="project-name">Nome</label><br />
+            <input id="project-name" name="name" type="text" required title="Nome comercial do empreendimento. Ex.: Residencial Vista Parque." />
+          </p>
+
+          <p>
+            <label for="project-city">Cidade</label><br />
+            <input id="project-city" name="city" type="text" required title="Cidade onde o imóvel será entregue." />
+          </p>
+
+          <p>
+            <label for="project-uf">UF</label><br />
+            <input id="project-uf" name="uf" type="text" minlength="2" maxlength="2" required title="Sigla do estado com 2 letras. Ex.: SP, RJ, MG." />
+          </p>
+
+          <p>
+            <label for="project-developer">Construtora</label><br />
+            <input id="project-developer" name="developer" type="text" required title="Nome da incorporadora/construtora responsável pelo empreendimento." />
+          </p>
+
+          <p>
+            <button id="project-save" type="submit" title="Salvar ou atualizar os dados do projeto.">Salvar</button>
+            <button id="project-clear" type="button" title="Limpar o formulário sem salvar alterações.">Limpar</button>
+          </p>
+        </form>
+
+        <div id="projects-list" aria-live="polite"></div>
+      </section>
+
+      <section id="simulations" class="view" aria-labelledby="titulo-simulations" hidden>
+        <h2 id="titulo-simulations">Simulações <span class="help-hover" title="Crie cenários para comparar diferentes datas, valores e condições do mesmo projeto.">ⓘ</span></h2>
+        <p class="section-help">Selecione um projeto e gerencie as simulações vinculadas.</p>
+
+        <p id="selected-project-info"></p>
+        <p>
+          <a href="#projects" id="change-project-link" title="Voltar para Projetos para trocar o contexto ativo.">Trocar projeto</a>
+        </p>
+
+        <div id="simulations-empty-state" class="empty-state" hidden>
+          <p id="simulations-empty-text">Selecione um projeto para cadastrar simulações.</p>
+          <a id="simulations-empty-cta" class="btn-primary-link" href="#projects">Selecionar projeto</a>
+        </div>
+
+        <div id="simulations-content" hidden>
+          <form id="simulation-form" class="card-block" novalidate>
+            <input type="hidden" id="simulation-id" name="simulationId" />
+
+            <p>
+              <label for="simulation-name">Nome</label><br />
+              <input id="simulation-name" name="name" type="text" required title="Nome do cenário. Ex.: Cenário conservador, Cenário agressivo." />
+            </p>
+
+            <p>
+              <label for="simulation-contract-date">Data do contrato</label><br />
+              <input id="simulation-contract-date" name="contractDate" type="date" required title="Mês de partida da linha do tempo da simulação." />
+            </p>
+
+            <p>
+              <label for="simulation-delivery-date">Data de entrega</label><br />
+              <input id="simulation-delivery-date" name="deliveryDate" type="date" required title="Previsão contratual de entrega das chaves (sem considerar tolerância)." />
+            </p>
+
+            <p>
+              <label for="simulation-base-price">Preço base</label><br />
+              <input id="simulation-base-price" name="basePrice" type="number" min="0" step="0.01" required title="Preço do contrato sem custos extras. Base para percentuais e financiamento." />
+            </p>
+
+            <p>
+              <label for="simulation-tolerance-days">Dias de tolerância</label><br />
+              <input id="simulation-tolerance-days" name="toleranceDays" type="number" min="0" step="1" title="Prazo adicional em dias corridos previsto em contrato após a data de entrega. Ex.: 180 dias." />
+            </p>
+            <p class="block-help">Dias de tolerância = prazo extra contratual além da entrega prevista. Valores acima de 180 dias geram alerta de risco.</p>
+
+            <p>
+              <button id="simulation-save" type="submit" title="Salvar ou atualizar a simulação deste projeto.">Salvar</button>
+              <button id="simulation-clear" type="button" title="Limpar o formulário da simulação sem salvar.">Limpar</button>
+            </p>
+          </form>
+
+          <div id="simulations-list" aria-live="polite"></div>
+        </div>
+      </section>
+
+      <section id="editor" class="view" aria-labelledby="titulo-editor" hidden>
+        <h2 id="titulo-editor">Editor <span class="help-hover" title="Área principal para montar pagamentos, custos, checklist e parâmetros do cálculo.">ⓘ</span></h2>
+        <p class="section-help">Preencha as configurações da simulação e os itens de fluxo no mesmo lugar.</p>
+
+        <p id="editor-selected-info">Selecionado: -</p>
+
+        <div id="editor-empty-state" class="empty-state" hidden>
+          <p id="editor-empty-text">Selecione uma simulação para editar.</p>
+          <a id="editor-empty-cta" class="btn-primary-link" href="#simulations">Ir para simulações</a>
+        </div>
+
+        <div id="editor-content" hidden>
+
+        <form id="simulation-config-form" class="card-block" novalidate>
+          <h3>Correção por índice</h3>
+          <p class="block-help">Ative para aplicar índice mensal manual na evolução dos valores. Referência recente: IPCA 0,33% ao mês (jan/2026, BCB SGS 433).</p>
+          <p>
+            <label>
+              <input id="index-enabled" name="indexEnabled" type="checkbox" title="Habilita correção monetária mensal sobre valores aplicáveis." />
+              Ativar correção por índice
+            </label>
+          </p>
+          <p>
+            <label for="index-monthly-rate">Taxa mensal (% ao mês)</label><br />
+            <input id="index-monthly-rate" name="indexMonthlyRate" type="number" min="0" step="0.0001" title="Taxa mensal usada quando não houver série detalhada por mês." />
+          </p>
+
+          <h3>Financiamento</h3>
+          <p class="block-help">Defina as condições básicas do financiamento para projeção de parcelas. Taxa-base macro de comparação: Selic 15,00% a.a. (último dado BCB SGS 432).</p>
+          <p>
+            <label>
+              <input id="financing-enabled" name="financingEnabled" type="checkbox" title="Ativa o cálculo de parcelas de financiamento no cronograma mensal." />
+              Ativar financiamento
+            </label>
+          </p>
+          <p>
+            <label for="financing-system">Sistema</label><br />
+            <select id="financing-system" name="financingSystem" title="SAC: parcela decrescente. PRICE: parcela aproximadamente constante.">
+              <option value="SAC">SAC</option>
+              <option value="PRICE">PRICE</option>
+            </select>
+          </p>
+          <p>
+            <label for="financing-start-date">Data de início</label><br />
+            <input id="financing-start-date" name="financingStartDate" type="date" title="Data da primeira parcela do financiamento." />
+          </p>
+          <p>
+            <label for="financing-months">Meses</label><br />
+            <input id="financing-months" name="financingMonths" type="number" min="0" step="1" title="Quantidade total de meses do financiamento." />
+          </p>
+          <p>
+            <label for="financing-annual-rate">Taxa anual (% ao ano)</label><br />
+            <input id="financing-annual-rate" name="financingAnnualRate" type="number" min="0" step="0.0001" title="Taxa anual do financiamento (% a.a.), convertida internamente para taxa mensal." />
+          </p>
+          <p>
+            <button id="simulation-config-save" type="submit" title="Salvar parâmetros de índice e financiamento da simulação.">Salvar configuração</button>
+          </p>
+        </form>
+
+        <form id="cashflow-form" class="card-block" novalidate>
+          <h3>Itens de fluxo de caixa</h3>
+          <p class="block-help">Cadastre entradas/saídas pontuais, mensais, em balão ou parceladas.</p>
+          <input type="hidden" id="cashflow-id" name="cashflowId" />
+
+          <p>
+            <label for="cashflow-type">Tipo</label><br />
+            <select id="cashflow-type" name="type" required title="Único: 1 pagamento. Mensal: repete todo mês. Balão: repete a cada N meses. Parcelado: divide o valor total em N parcelas.">
+              <option value="once">Único</option>
+              <option value="monthly">Mensal</option>
+              <option value="balloon">Balão</option>
+              <option value="installments">Parcelado</option>
+            </select>
+          </p>
+
+          <p>
+            <label for="cashflow-label">Rótulo</label><br />
+            <input id="cashflow-label" name="label" type="text" required title="Descrição curta do item. Ex.: Entrada, Parcela intermediária." />
+          </p>
+
+          <p>
+            <label for="cashflow-amount">Valor</label><br />
+            <input id="cashflow-amount" name="amount" type="number" min="0" step="0.01" required title="Valor nominal do item de fluxo de caixa. No tipo Parcelado, informe o valor total a ser dividido." />
+          </p>
+
+          <p id="field-once-date">
+            <label for="cashflow-date">Data</label><br />
+            <input id="cashflow-date" name="date" type="date" title="Data usada para item do tipo Único. No tipo Parcelado, é a data da 1ª parcela." />
+          </p>
+
+          <p id="field-range-start">
+            <label for="cashflow-start-date">Data de início</label><br />
+            <input id="cashflow-start-date" name="startDate" type="date" title="Primeiro mês de incidência para tipos Mensal/Balão." />
+          </p>
+
+          <p id="field-range-end">
+            <label for="cashflow-end-date">Data de fim</label><br />
+            <input id="cashflow-end-date" name="endDate" type="date" title="Último mês de incidência para tipos Mensal/Balão." />
+          </p>
+
+          <p id="field-every-months">
+            <label for="cashflow-every-months">A cada meses</label><br />
+            <input id="cashflow-every-months" name="everyMonths" type="number" min="1" step="1" value="6" title="No tipo Balão/Parcelado, intervalo em meses entre cobranças." />
+          </p>
+
+          <p id="field-installment-count">
+            <label for="cashflow-installment-count">Quantidade de parcelas</label><br />
+            <input id="cashflow-installment-count" name="installmentCount" type="number" min="1" step="1" value="12" title="No tipo Parcelado, total de parcelas. O valor do item será dividido por esta quantidade." />
+          </p>
+
+          <p>
+            <button id="cashflow-save" type="submit" title="Salvar item de fluxo de caixa.">Salvar item</button>
+            <button id="cashflow-clear" type="button" title="Limpar formulário de fluxo de caixa.">Limpar item</button>
+          </p>
+        </form>
+
+        <div id="cashflows-list" class="card-block" aria-live="polite"></div>
+
+        <form id="builder-payment-form" class="card-block" novalidate>
+          <h3>Pagamentos para construtora</h3>
+          <p class="block-help">Cadastre sinal, entrada, obras, intermediárias e chaves com valor fixo ou percentual.</p>
+          <input type="hidden" id="builder-payment-id" name="builderPaymentId" />
+
+          <p>
+            <label for="builder-payment-type">Tipo</label><br />
+            <select id="builder-payment-type" name="type" required title="Define a recorrência do pagamento para a construtora.">
+              <option value="once">Único</option>
+              <option value="monthly">Mensal</option>
+              <option value="balloon">Balão</option>
+            </select>
+          </p>
+
+          <p>
+            <label for="builder-payment-phase">Fase</label><br />
+            <select id="builder-payment-phase" name="phase" required title="Fase do contrato em que esse pagamento acontece.">
+              <option value="Signal">Sinal</option>
+              <option value="Entry">Entrada</option>
+              <option value="Work">Obra</option>
+              <option value="Intermediary">Intermediária</option>
+              <option value="Keys">Chaves</option>
+            </select>
+          </p>
+
+          <p>
+            <label for="builder-payment-amount-mode">Modo do valor</label><br />
+            <select id="builder-payment-amount-mode" name="amountMode" required title="Fixo = valor em reais. Percentual = % do preço base da simulação.">
+              <option value="fixed">Valor fixo (R$)</option>
+              <option value="percent">% do preço base</option>
+            </select>
+          </p>
+
+          <p>
+            <label for="builder-payment-amount">Valor</label><br />
+            <input id="builder-payment-amount" name="amount" type="number" min="0" step="0.01" required title="Valor numérico em R$ ou em %, conforme o modo escolhido." />
+          </p>
+
+          <p>
+            <label for="builder-payment-index-ref">Índice de referência (opcional)</label><br />
+            <input id="builder-payment-index-ref" name="indexRef" type="text" placeholder="Ex.: INCC" title="Nome da série de índice para correção composta desse item (opcional)." />
+          </p>
+
+          <p id="builder-field-once-date">
+            <label for="builder-payment-date">Data</label><br />
+            <input id="builder-payment-date" name="date" type="date" title="Data usada quando o tipo for Único." />
+          </p>
+
+          <p id="builder-field-range-start">
+            <label for="builder-payment-start-date">Data de início</label><br />
+            <input id="builder-payment-start-date" name="startDate" type="date" title="Data inicial para tipo Mensal/Balão." />
+          </p>
+
+          <p id="builder-field-range-end">
+            <label for="builder-payment-end-date">Data de fim</label><br />
+            <input id="builder-payment-end-date" name="endDate" type="date" title="Data final para tipo Mensal/Balão." />
+          </p>
+
+          <p id="builder-field-every-months">
+            <label for="builder-payment-every-months">A cada meses</label><br />
+            <input
+              id="builder-payment-every-months"
+              name="everyMonths"
+              type="number"
+              min="1"
+              step="1"
+              value="6"
+              title="No tipo Balão, intervalo em meses entre ocorrências."
+            />
+          </p>
+
+          <p>
+            <button id="builder-payment-save" type="submit" title="Salvar pagamento da construtora.">Salvar pagamento</button>
+            <button id="builder-payment-clear" type="button" title="Limpar formulário de pagamento da construtora.">Limpar pagamento</button>
+          </p>
+        </form>
+
+        <div id="builder-payments-list" class="card-block" aria-live="polite"></div>
+        <p id="builder-payments-total" class="block-help">Total: R$ 0,00</p>
+
+        <form id="extras-cost-form" class="card-block" novalidate>
+          <h3>Custos extras</h3>
+          <p class="block-help">Cadastre custos como corretagem, ITBI, cartório, mudança, condomínio estimado e outros.</p>
+          <input type="hidden" id="extras-cost-id" name="extrasCostId" />
+
+          <p>
+            <label for="extras-cost-label">Nome do custo</label><br />
+            <input id="extras-cost-label" name="label" type="text" required title="Nome do custo extra. Ex.: ITBI, Cartório, Mudança, Condomínio inicial." />
+          </p>
+
+          <p>
+            <label for="extras-cost-category">Categoria</label><br />
+            <input id="extras-cost-category" name="category" type="text" placeholder="Ex.: ITBI, Cartório" required title="Categoria para organização e análise dos custos extras." />
+          </p>
+
+          <p>
+            <label for="extras-cost-due-month">Mês de vencimento</label><br />
+            <input id="extras-cost-due-month" name="dueMonth" type="month" title="Mês previsto para pagamento desse custo extra." />
+          </p>
+
+          <p>
+            <label for="extras-cost-amount">Valor</label><br />
+            <input id="extras-cost-amount" name="amount" type="number" min="0" step="0.01" required title="Valor estimado do custo extra." />
+          </p>
+
+          <p>
+            <button id="extras-cost-save" type="submit" title="Salvar custo extra.">Salvar custo</button>
+            <button id="extras-cost-clear" type="button" title="Limpar formulário de custo extra.">Limpar custo</button>
+          </p>
+        </form>
+
+        <div id="extras-costs-list" class="card-block" aria-live="polite"></div>
+        <p id="extras-costs-total" class="block-help">Total: R$ 0,00</p>
+
+        <form id="protection-checklist-form" class="card-block" novalidate>
+          <h3>Checklist de proteção</h3>
+          <p class="block-help">Marque validações importantes e registre observações.</p>
+
+          <p>
+            <label title="Confirme se o quadro-resumo contratual foi revisado com atenção.">
+              <input id="check-quadro-resumo" name="quadroResumo" type="checkbox" title="Marque quando o quadro-resumo tiver sido conferido." />
+              Quadro-resumo revisado
+            </label>
+          </p>
+          <p>
+            <label title="Confirme análise de memorial descritivo e matrícula/cartório.">
+              <input id="check-memorial-registry" name="memorialRegistryChecked" type="checkbox" title="Marque quando memorial e matrícula estiverem validados." />
+              Memorial e matrícula/cartório verificados
+            </label>
+          </p>
+          <p>
+            <label title="Corretagem deve estar explícita e destacada no contrato.">
+              <input id="check-brokerage-highlighted" name="brokerageHighlighted" type="checkbox" title="Marque quando corretagem estiver claramente destacada." />
+              Corretagem destacada em contrato
+            </label>
+          </p>
+          <p>
+            <label title="Marque caso exista SATI para avaliar necessidade e impacto.">
+              <input id="check-sati-present" name="satiPresent" type="checkbox" title="SATI presente pode gerar alerta de atenção." />
+              SATI presente/avaliado
+            </label>
+          </p>
+          <p>
+            <label title="Confirme se há reserva financeira para ITBI.">
+              <input id="check-itbi-provisioned" name="itbiProvisioned" type="checkbox" title="Marque quando o ITBI estiver provisionado no plano financeiro." />
+              ITBI provisionado
+            </label>
+          </p>
+
+          <p>
+            <label for="checklist-notes">Notas</label><br />
+            <textarea id="checklist-notes" name="notes" rows="4" title="Anote pendências, decisões e pontos para revisar com advogado/corretor."></textarea>
+          </p>
+
+          <p>
+            <button id="protection-checklist-save" type="submit" title="Salvar respostas do checklist de proteção.">Salvar checklist</button>
+          </p>
+        </form>
+        </div>
+      </section>
+
+      <section id="results" class="view" aria-labelledby="titulo-results" hidden>
+        <h2 id="titulo-results">Resultados <span class="help-hover" title="Consolida totais e cronograma para tomada de decisão.">ⓘ</span></h2>
+        <p class="section-help">Recalcule para atualizar totais, timeline e riscos da simulação atual.</p>
+        <p id="results-selected-info">Selecionado: -</p>
+
+        <div id="results-empty-state" class="empty-state" hidden>
+          <p id="results-empty-text">Selecione uma simulação para visualizar resultados.</p>
+          <a id="results-empty-cta" class="btn-primary-link" href="#simulations">Criar simulação</a>
+        </div>
+
+        <div id="results-content" hidden>
+
+        <div class="results-controls">
+          <button id="btn-recalculate" type="button" title="Reprocessar cálculos com os dados atuais da simulação.">Recalcular</button>
+        </div>
+
+        <div class="results-block">
+          <h3>Resumo por categoria</h3>
+          <div id="results-totals" class="results-summary"></div>
+        </div>
+
+        <div class="results-block">
+          <h3>Resumo por fase</h3>
+          <div id="results-phase-totals" class="results-summary"></div>
+        </div>
+
+        <div class="results-block">
+          <h3>Timeline</h3>
+          <p>
+            <label for="results-timeline-category-filter">Filtrar por categoria</label><br />
+            <select id="results-timeline-category-filter" name="timelineCategoryFilter" title="Mostra somente linhas da categoria selecionada na timeline.">
+              <option value="all">Todas</option>
+              <option value="builder">Pagamentos construtora</option>
+              <option value="legacy">Fluxo manual (legado)</option>
+              <option value="construction">Juros de obra</option>
+              <option value="financing">Financiamento</option>
+            </select>
+          </p>
+          <div id="results-timeline">-</div>
+        </div>
+
+        <div class="results-block">
+          <h3>Riscos</h3>
+          <ul id="results-risks">-</ul>
+        </div>
+
+        <div class="results-block">
+          <h3>Exportar JSON do banco</h3>
+          <p>
+            <textarea id="results-export-text" rows="8" readonly title="JSON completo do banco para backup e migração entre máquinas."></textarea>
+          </p>
+          <p>
+            <button id="results-copy-btn" type="button" title="Copiar JSON para a área de transferência.">Copiar</button>
+            <button id="results-download-btn" type="button" title="Baixar backup do banco em arquivo JSON.">Baixar arquivo .json</button>
+          </p>
+        </div>
+
+        <div class="results-block">
+          <h3>Importar JSON do banco</h3>
+          <p>
+            <textarea id="results-import-text" rows="8" title="Cole aqui o JSON exportado para validar antes de aplicar."></textarea>
+          </p>
+          <p>
+            <button id="results-import-preview-btn" type="button" title="Validar formato, versão e estrutura sem alterar o banco atual.">Validar e pré-visualizar</button>
+            <button id="results-import-apply-btn" type="button" disabled title="Aplicar importação somente após pré-visualização válida.">Aplicar importação</button>
+          </p>
+          <div id="results-import-preview"></div>
+          <p id="results-import-status"></p>
+        </div>
+        </div>
+      </section>
+
+      <section id="faq" class="view" aria-labelledby="titulo-faq" hidden>
+        <h2 id="titulo-faq">FAQ</h2>
+        <p class="section-help">Guia essencial para decisão de compra na planta com foco em segurança jurídica e financeira.</p>
+
+        <div class="card-block">
+          <h3>Referências atuais (consulta rápida)</h3>
+          <p class="block-help">Atualizado em <span id="market-ref-updated-at">19/02/2026</span> para apoio didático. Sempre confirme os números no contrato, banco e fontes oficiais antes de decidir.</p>
+          <ul>
+            <li><strong>Selic (BCB SGS 432):</strong> <span id="market-ref-selic-value">15,00% a.a.</span> <span id="market-ref-selic-date">(último registro retornado na consulta)</span>.</li>
+            <li><strong>IPCA mensal (BCB SGS 433):</strong> <span id="market-ref-ipca-value">0,33% no mês</span> <span id="market-ref-ipca-date">(jan/2026)</span>.</li>
+            <li><strong>Tolerância de entrega (Lei 4.591/1964, art. 43-A):</strong> até 180 dias corridos, quando pactuado de forma clara no contrato.</li>
+            <li><strong>Atraso além da tolerância (Lei 4.591/1964, art. 43-A, §2º):</strong> indenização de 1% ao mês sobre o valor efetivamente pago, pro rata die.</li>
+            <li><strong>Direito de arrependimento (Lei 13.786/2018):</strong> 7 dias para contratos firmados em estande/fora da sede.</li>
+          </ul>
+          <p class="block-help">
+            Fontes oficiais: 
+            <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.432/dados/ultimos/1?formato=json" target="_blank" rel="noopener noreferrer">BCB SGS 432</a>,
+            <a href="https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados/ultimos/1?formato=json" target="_blank" rel="noopener noreferrer">BCB SGS 433</a>,
+            <a href="https://www.planalto.gov.br/ccivil_03/leis/l4591.htm" target="_blank" rel="noopener noreferrer">Lei 4.591/1964</a> e
+            <a href="https://www.planalto.gov.br/ccivil_03/_Ato2015-2018/2018/Lei/L13786.htm" target="_blank" rel="noopener noreferrer">Lei 13.786/2018</a>.
+          </p>
+        </div>
+
+        <div class="card-block">
+          <h3>Pontos cruciais do negócio</h3>
+
+          <details>
+            <summary>1) Quais documentos eu preciso conferir antes de assinar?</summary>
+            <p>Revise quadro-resumo, memorial descritivo, matrícula atualizada do imóvel/terreno, minuta contratual e identificação clara da incorporadora/construtora.</p>
+          </details>
+
+          <details>
+            <summary>2) O que significa “dias de tolerância”?</summary>
+            <p>É o prazo adicional em dias corridos além da data de entrega prevista em contrato. Pela prática legal de referência, costuma-se pactuar até 180 dias; acima disso a atenção jurídica deve ser redobrada.</p>
+          </details>
+
+          <details>
+            <summary>3) Como interpretar corretagem e SATI?</summary>
+            <p>Corretagem deve estar destacada de forma clara no contrato/quadro-resumo (incluindo beneficiário). SATI, quando presente, deve ser analisada com cuidado para evitar cobranças indevidas.</p>
+          </details>
+
+          <details>
+            <summary>4) Quais custos extras costumam ser esquecidos?</summary>
+            <p>ITBI, registro/cartório, mudança, ligação de serviços, condomínio inicial e eventuais adequações do imóvel. Cadastre tudo na aba Editor para não subestimar o custo total.</p>
+          </details>
+
+          <details>
+            <summary>5) Qual a diferença entre SAC e PRICE?</summary>
+            <p>No SAC, a amortização é constante e a parcela tende a cair com o tempo. No PRICE, a parcela tende a ser mais estável no início, com maior participação de juros nas primeiras prestações.</p>
+          </details>
+
+          <details>
+            <summary>6) O que a correção por índice muda na prática?</summary>
+            <p>Ela aumenta os pagamentos ao longo do tempo por capitalização composta mensal. Mesmo pequenas taxas mensais acumulam impacto relevante no valor final.</p>
+          </details>
+
+          <details>
+            <summary>7) Como usar este app da forma mais segura?</summary>
+            <p>Fluxo recomendado: Projeto → Simulação → Editor (pagamentos/custos/checklist) → Resultados (recalcular + riscos) → Exportar JSON como backup antes de qualquer alteração grande.</p>
+          </details>
+
+          <details>
+            <summary>8) O que fazer quando surgirem flags de risco?</summary>
+            <p>Trate cada flag como pendência obrigatória. Atualize checklist e dados da simulação até remover os alertas críticos, e valide contrato/documentos com suporte jurídico especializado.</p>
+          </details>
+        </div>
+      </section>
     </main>
 
-    <script>
-      const botao = document.getElementById("acao");
-      const limpar = document.getElementById("limpar");
-      const mensagem = document.getElementById("mensagem");
-
-      botao.addEventListener("click", () => {
-        mensagem.textContent = "Próximo passo: defina seu teto de orçamento e organize os documentos iniciais.";
-      });
-
-      limpar.addEventListener("click", () => {
-        mensagem.textContent = "";
-      });
-    </script>
+    <script type="module" src="./js/app.js"></script>
   </body>
 </html>

@@ -1,0 +1,2890 @@
+Simulador de Compra de Apartamento na Planta
+Escopo e premissas do app
+Este projeto entrega um web app “bem direto ao ponto”, pensado para ser fácil de manter e de evoluir
+por pessoas em início de carreira:  apenas HTML + CSS + JavaScript Vanilla com  ES Modules (sem
+frameworks  e  sem  build  tools).  Para  ES  Modules  funcionarem  corretamente  no  navegador ,  o
+carregamento do JavaScript é feito com type="module" e import/export entre arquivos. 
+A  persistência  é  feita  exclusivamente  via  localStorage (chave  fixa  APTO_SIM_DB_V1).  O
+localStorage armazena  somente strings, então o banco é serializado com  JSON.stringify e
+reidratado com JSON.parse. 
+O simulador modela três níveis principais:
+Projetos: cadastro do empreendimento (nome, cidade, UF, incorporadora/“developer”).
+Simulações: cadastro por projeto (nome, datas relevantes, preço-base).
+Editor de simulação: itens de fluxo de caixa (mensal / balão / único), correção por índice
+(opcional, ex.: INCC), financiamento (opcional: SAC ou PRICE), recalcular .
+Resultados: totais por fase, linha do tempo mensal, flags de risco, export/import JSON.
+A correção por índice é tratada como  capitalização composta mensal (produto de fatores mensais),
+alinhada ao uso de juros compostos em séries temporais financeiras. 
+O  INCC  (da  FGV  IBRE)  é  referenciado  como  exemplo  de  índice  de  custos  de  construção  e  é
+comumente acompanhado mensalmente (o app deixa genérico: qualquer série mensal em %). 
+Modelo de dados e persistência em localStorage
+O “banco” (APTO_SIM_DB_V1) é um JSON com  versão, timestamps e coleções lineares (arrays) para
+evitar atualizações profundas e complexas.
+Pontos de design:
+Versão (version: 1) para permitir migração futura.
+IDs string simples (crypto.randomUUID() quando disponível; fallback com timestamp).
+Tudo em um único objeto para facilitar export/import e reduzir chances de inconsistência.
+Por  que  localStorage:  por  ser  simples  e  disponível  no  navegador ,  mas  exige  cuidado  com
+disponibilidade (modo privado / quota / bloqueios) e com a serialização de objetos. 
+1
+2
+• 
+• 
+• 
+• 
+3
+4
+5
+• 
+• 
+• 
+6
+1
+
+Motor de cálculos: linha do tempo, correção e financiamento
+Linha do tempo mensal e correção por índice
+A linha do tempo é construída mês a mês (YYYY-MM) desde o mês do contrato até:
+o último mês com item de fluxo de caixa, ou
+o final do financiamento (se habilitado),
+o que for maior .
+Quando a correção é habilitada, o app calcula um fator acumulado mensal:
+mês inicial do contrato: fator = 1 
+meses seguintes: fator[mês] = fator[mês_anterior] * (1 + taxa_do_mês)
+Isso é uma aplicação direta de composição por períodos (juros compostos/capitalização), generalizando
+para taxas variáveis. 
+A série “INCC” entra como exemplo por ser um índice de custos da construção civil e por ter divulgação
+mensal. 
+SAC e PRICE
+O app oferece financiamento com:
+SAC: amortização constante (PV / n), juros sobre saldo, prestação decrescente. 
+PRICE (Sistema Francês): prestação constante, juros decrescentes e amortização crescente;
+prestação calculada por coeficiente/annuity. 
+A fórmula de prestação do PRICE é implementada via coeficiente :
+ e . 
+Conversão de taxa anual para mensal
+O app assume que a taxa informada no editor é ao ano (% a.a.) e converte para taxa mensal efetiva
+por:
+i_m = (1 + i_a)^(1/12) - 1
+que é um uso direto da lógica de capitalização composta por períodos. 
+Alertas de risco e motivação das regras
+O módulo de riscos é propositalmente pequeno: gera flags por regras booleanas simples (sem “IA”, sem
+probabilidades), para apoiar checklist prático.
+Regras implementadas:
+Quadro-resumo ausente: a Lei 4.591/1964 (texto compilado no Portal do Planalto)
+determina que contratos de incorporação iniciem com quadro-resumo contendo, entre outros,
+preço total, corretagem, índices de correção e sistema de amortização. 
+• 
+• 
+• 
+• 
+3
+5
+• 7
+• 
+8
+K
+K= 
+(1+i) −1n
+i(1+i)n
+PMT=PV ⋅ K 9
+3
+• 10
+11
+2
+
+Corretagem não confirmada: o quadro-resumo inclui informações de corretagem e
+beneficiário; então a ausência/indefinição é um risco de comunicação/planejamento. 
+ITBI não provisionado: ITBI é imposto municipal na transmissão onerosa inter vivos e costuma
+ser devido no contexto de registro/transferência (o app trata como provisionamento financeiro). 
+Tolerância acima de 180 dias: o texto legal (Lei 13.786/2018 no Planalto) explicita o marco
+de até 180 dias corridos para cláusula de tolerância destacada. 
+Integração opcional: BCB SGS (sem backend)
+Como extra opcional, há função para buscar séries no SGS do Banco Central do Brasil via fetch
+direto do navegador .
+A documentação do recurso JSON no portal de dados do BCB descreve o padrão de URL, parâmetros
+( codigo_serie,  dataInicial,  dataFinal)  e  restrições:  intervalo  máximo  de  10  anos entre
+datas e endpoint de “últimos N” (com limite informado no recurso). 
+O app deixa isso “atrás de um <details>” no editor e não depende disso para funcionar .
+Árvore de arquivos e código completo
+Estrutura:
+index.html
+styles.css
+js/
+app.js
+storage.js
+calc.js
+render.js
+risks.js
+faq.js
+index.html
+<!doctype html>
+<htmllang="pt-BR">
+<head>
+<metacharset="UTF-8"/>
+<metaname="viewport"content="width=device-width, initial-scale=1.0"/>
+<title>Simulador Compra na Planta • Apto</title>
+<linkrel="stylesheet"href="./styles.css"/>
+</head>
+<body>
+<headerclass="app-header">
+<divclass="container header-row">
+<divclass="brand">
+<divclass="brand-title">Apto • Simulador “na planta”</div>
+• 
+12
+• 
+13
+• 10
+14
+15
+16
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+• 
+3
+
+<divclass="brand-sub"id="app-subtitle">localStorage • 
+APTO_SIM_DB_V1</div>
+</div>
+<navclass="nav">
+<a class="nav-link"href="#projects"data-nav>Projetos</a>
+<a class="nav-link"href="#sims"data-nav>Simulações</a>
+<a class="nav-link"href="#editor"data-nav>Editor</a>
+<a class="nav-link"href="#results"data-nav>Resultados</a>
+<a class="nav-link"href="#faq"data-nav>FAQ</a>
+</nav>
+</div>
+</header>
+<mainclass="container app-main">
+<sectionclass="statusbar">
+<divclass="status-pill">
+<spanclass="status-label">Projeto:</span>
+<spanid="status-project">—</span>
+</div>
+<divclass="status-pill">
+<spanclass="status-label">Simulação:</span>
+<spanid="status-sim">—</span>
+</div>
+<divclass="status-spacer"></div>
+<buttonclass="btn btn-ghost"id="btn-export"type="button"
+title="Baixar export JSON">
+          Exportar JSON
+</button>
+<labelclass="btn btn-ghost file-btn"
+title="Importar JSON (substitui o banco)">
+          Importar JSON
+<inputid="file-import"type="file"accept="application/json"/>
+</label>
+<buttonclass="btn btn-danger"id="btn-reset"type="button"
+title="Voltar para os dados de exemplo">
+          Resetar exemplo
+</button>
+</section>
+<sectionid="view-projects"class="view">
+<h2>Projetos</h2>
+<p class="muted">
+          Cadastre empreendimentos (nome, cidade/UF e incorporadora). Depois 
+crie simulações por projeto.
+</p>
+<divclass="grid-2">
+<divclass="card">
+<h3>Lista</h3>
+<divid="projects-list"></div>
+4
+
+</div>
+<divclass="card">
+<h3id="project-form-title">Novo projeto</h3>
+<formid="project-form"class="form">
+<inputtype="hidden"id="project-id"/>
+<label>
+                Nome do projeto
+<inputid="project-name"type="text"required
+placeholder="Ex.: Residencial Vista Park"/>
+</label>
+<divclass="grid-2">
+<label>
+                  Cidade
+<inputid="project-city"type="text"required
+placeholder="Ex.: São Paulo"/>
+</label>
+<label>
+                  UF
+<inputid="project-uf"type="text"requiredmaxlength="2"
+placeholder="SP"/>
+</label>
+</div>
+<label>
+                Incorporadora / Developer
+<inputid="project-developer"type="text"required
+placeholder="Ex.: Construtora X"/>
+</label>
+<divclass="row">
+<buttonclass="btn"type="submit">Salvar</button>
+<buttonclass="btn btn-ghost"id="project-cancel"
+type="button">Limpar</button>
+</div>
+</form>
+</div>
+</div>
+</section>
+<sectionid="view-sims"class="view hidden">
+<h2>Simulações</h2>
+<p class="muted">
+          Cada simulação pertence a um projeto. Aqui você define datas e 
+preço-base; os detalhes ficam no editor.
+</p>
+<divid="sims-empty"class="notice hidden">
+5
+
+          Selecione um projeto em <b>Projetos</b> para ver/criar simulações.
+</div>
+<divid="sims-content"class="grid-2 hidden">
+<divclass="card">
+<h3>Lista</h3>
+<divid="sims-list"></div>
+</div>
+<divclass="card">
+<h3id="sim-form-title">Nova simulação</h3>
+<formid="sim-form"class="form">
+<inputtype="hidden"id="sim-id"/>
+<label>
+                Nome da simulação
+<inputid="sim-name"type="text"requiredplaceholder="Ex.: 
+Cenário base"/>
+</label>
+<divclass="grid-2">
+<label>
+                  Data do contrato
+<inputid="sim-contractDate"type="date"required/>
+</label>
+<label>
+                  Data prevista de entrega
+<inputid="sim-deliveryDate"type="date"required/>
+</label>
+</div>
+<divclass="grid-2">
+<label>
+                  Tolerância (dias)
+<inputid="sim-toleranceDays"type="number"min="0"
+step="1"value="180"/>
+</label>
+<label>
+                  Preço-base (R$)
+<inputid="sim-basePrice"type="number"min="0"
+step="0.01"requiredplaceholder="500000"/>
+</label>
+</div>
+<divclass="row">
+<buttonclass="btn"type="submit">Salvar</button>
+<buttonclass="btn btn-ghost"id="sim-cancel"
+type="button">Limpar</button>
+6
+
+</div>
+<divclass="hint">
+                Dica: depois de salvar, abra no <b>Editor</b> para criar 
+fluxo de caixa, correção e financiamento.
+</div>
+</form>
+</div>
+</div>
+</section>
+<sectionid="view-editor"class="view hidden">
+<h2>Editor da simulação</h2>
+<divid="editor-empty"class="notice hidden">
+          Selecione uma simulação em <b>Simulações</b> para editar.
+</div>
+<divid="editor-content"class="hidden">
+<divclass="card">
+<h3>Checklist e premissas</h3>
+<divclass="grid-2">
+<labelclass="check">
+<inputid="flag-quadro"type="checkbox"/>
+                Tenho quadro-resumo / informações essenciais confirmadas
+</label>
+<labelclass="check">
+<inputid="flag-corretagem"type="checkbox"/>
+                Corretagem confirmada (valor/beneficiário/condições)
+</label>
+<labelclass="check">
+<inputid="flag-itbi"type="checkbox"/>
+                ITBI provisionado no planejamento
+</label>
+</div>
+<divclass="row row-spaced">
+<buttonclass="btn"id="btn-save-flags"type="button">Salvar 
+checklist</button>
+</div>
+<divclass="hint">
+              O app usa essas flags para gerar alertas simples (não é 
+recomendação jurídica/financeira).
+</div>
+</div>
+<divclass="grid-2">
+<divclass="card">
+7
+
+<h3>Itens de fluxo de caixa</h3>
+<divid="cashflow-table"></div>
+<h4id="cashflow-form-title">Novo item</h4>
+<formid="cashflow-form"class="form">
+<inputtype="hidden"id="cashflow-id"/>
+<label>
+                  Tipo
+<selectid="cashflow-kind">
+<optionvalue="monthly">Mensal</option>
+<optionvalue="balloon">Balão</option>
+<optionvalue="once">Único</option>
+</select>
+</label>
+<label>
+                  Descrição
+<inputid="cashflow-label"type="text"required
+placeholder="Ex.: Parcela obra / Entrada / ITBI"/>
+</label>
+<label>
+                  Valor base (R$)
+<inputid="cashflow-amount"type="number"min="0"
+step="0.01"required/>
+</label>
+<divclass="grid-2">
+<label>
+                    Início (para mensal)
+<inputid="cashflow-startDate"type="date"/>
+</label>
+<label>
+                    Fim (para mensal)
+<inputid="cashflow-endDate"type="date"/>
+</label>
+</div>
+<label>
+                  Vencimento (para balão/único)
+<inputid="cashflow-dueDate"type="date"/>
+</label>
+<divclass="grid-2">
+<labelclass="check">
+<inputid="cashflow-corr"type="checkbox"checked/>
+                    Aplicar correção por índice (se habilitada)
+</label>
+<labelclass="check">
+8
+
+<inputid="cashflow-principal"type="checkbox"checked/>
+                    Abate saldo do imóvel (principal)
+</label>
+</div>
+<divclass="row">
+<buttonclass="btn"type="submit">Salvar item</button>
+<buttonclass="btn btn-ghost"id="cashflow-cancel"
+type="button">Limpar</button>
+</div>
+<divclass="hint">
+                  “Mensal” gera lançamentos em todos os meses entre início e 
+fim. “Balão” e “Único” caem em 1 mês.
+</div>
+</form>
+</div>
+<divclass="card">
+<h3>Correção por índice</h3>
+<labelclass="check">
+<inputid="corr-enabled"type="checkbox"/>
+                Habilitar correção mensal por série (ex.: INCC)
+</label>
+<divclass="grid-2">
+<label>
+                  Série
+<selectid="corr-series"></select>
+</label>
+<label>
+                  Observação
+<inputid="corr-note"type="text"
+placeholder="Ex.: INCC-M, acumulado por mês"/>
+</label>
+</div>
+<detailsclass="details">
+<summary>Editar série (manual)</summary>
+<divclass="hint">
+                  Cole um JSON simples no formato: <code>{"YYYY-MM": 0.21, 
+"YYYY-MM": 0.30}</code> (valores em %).
+</div>
+<label>
+                  JSON de variações mensais (%)
+<textareaid="corr-json"rows="7"spellcheck="false"></
+textarea>
+9
+
+</label>
+<divclass="row">
+<buttonclass="btn"id="btn-corr-apply"
+type="button">Aplicar no cadastro da série</button>
+</div>
+</details>
+<detailsclass="details">
+<summary>Opcional: importar do BCB (SGS) via fetch</summary>
+<divclass="hint">
+                  Usa o endpoint público do SGS em JSON. O próprio BCB 
+documenta parâmetros e limites (como período
+                  máximo entre datas). Se não quiser usar, ignore esta seção.
+</div>
+<divclass="grid-3">
+<label>
+                    Código da série (SGS)
+<inputid="bcb-seriesCode"type="number"min="1"
+step="1"placeholder="Ex.: 433"/>
+</label>
+<label>
+                    Data inicial
+<inputid="bcb-start"type="date"/>
+</label>
+<label>
+                    Data final
+<inputid="bcb-end"type="date"/>
+</label>
+</div>
+<divclass="row">
+<buttonclass="btn btn-ghost"id="btn-bcb-fetch"
+type="button">
+                    Buscar e salvar como nova série
+</button>
+</div>
+<divclass="hint">
+                  Observação: o SGS retorna datas no formato dd/MM/aaaa e 
+valores como string.
+</div>
+</details>
+<divclass="row row-spaced">
+<buttonclass="btn"id="btn-save-corr"type="button">Salvar 
+configurações de correção</button>
+10
+
+</div>
+</div>
+</div>
+<divclass="card">
+<h3>Plano de financiamento</h3>
+<labelclass="check">
+<inputid="fin-enabled"type="checkbox"/>
+              Habilitar financiamento do saldo (SAC ou PRICE)
+</label>
+<divclass="grid-4">
+<label>
+                Sistema
+<selectid="fin-type">
+<optionvalue="SAC">SAC</option>
+<optionvalue="PRICE">PRICE</option>
+</select>
+</label>
+<label>
+                Prazo (meses)
+<inputid="fin-months"type="number"min="1"step="1"
+value="240"/>
+</label>
+<label>
+                Juros (% a.a.)
+<inputid="fin-annualRate"type="number"min="0"step="0.01"
+value="10.00"/>
+</label>
+<label>
+                Início do financiamento
+<inputid="fin-startDate"type="date"/>
+</label>
+</div>
+<divclass="hint"id="fin-rate-hint">—</div>
+<divclass="row row-spaced">
+<buttonclass="btn"id="btn-save-fin"type="button">Salvar 
+financiamento</button>
+<buttonclass="btn"id="btn-recalc"type="button">Recalcular</
+button>
+</div>
+<divclass="hint">
+              “Recalcular” reconstrói a linha do tempo e atualiza os 
+resultados. Você pode abrir “Resultados” depois.
+11
+
+</div>
+</div>
+</div>
+</section>
+<sectionid="view-results"class="view hidden">
+<h2>Resultados</h2>
+<divid="results-empty"class="notice hidden">
+          Selecione uma simulação em <b>Simulações</b> e clique em 
+<b>Recalcular</b> no editor.
+</div>
+<divid="results-content"class="hidden">
+<divclass="grid-2">
+<divclass="card">
+<h3>Totais</h3>
+<divid="results-totals"></div>
+</div>
+<divclass="card">
+<h3>Alertas de risco</h3>
+<divid="results-risks"></div>
+</div>
+</div>
+<divclass="card">
+<h3>Linha do tempo mensal</h3>
+<divclass="hint">
+              Valores em R$; índice em % (mês). O simulador é aproximado e 
+serve para comparações/planejamento.
+</div>
+<divclass="table-wrap"id="results-timeline"></div>
+</div>
+<divclass="card">
+<h3>Exportar / Importar</h3>
+<divclass="grid-2">
+<div>
+<divclass="row">
+<buttonclass="btn btn-ghost"id="btn-export-inline"
+type="button">Gerar JSON abaixo</button>
+<buttonclass="btn"id="btn-copy-json"
+type="button">Copiar</button>
+</div>
+<textareaid="export-json"rows="10"spellcheck="false"
+placeholder="Clique em “Gerar JSON abaixo”..."></textarea>
+</div>
+<div>
+<divclass="hint">Cole um JSON exportado e importe (isso 
+12
+
+substitui todo o banco local).</div>
+<divclass="row">
+<buttonclass="btn btn-danger"id="btn-import-inline"
+type="button">Importar (substituir)</button>
+</div>
+<textareaid="import-json"rows="10"spellcheck="false"
+placeholder='Cole aqui um JSON do APTO_SIM_DB_V1...'></textarea>
+</div>
+</div>
+</div>
+</div>
+</section>
+<sectionid="view-faq"class="view hidden">
+<h2>FAQ</h2>
+<divid="faq-content"></div>
+</section>
+<divid="toast"class="toast hidden"role="status"aria-
+live="polite"></div>
+</main>
+<scripttype="module"src="./js/app.js"></script>
+</body>
+</html>
+styles.css
+:root{
+--bg: #0b0e14;
+--panel: #121826;
+--panel2: #0f1420;
+--text: #e8eefc;
+--muted: #aab6d6;
+--border: rgba(255, 255, 255, 0.12);
+--shadow: 0 10px30pxrgba(0, 0, 0, 0.35);
+--good: #2dd4bf;
+--warn: #fbbf24;
+--bad: #fb7185;
+--radius: 14px;
+--gap: 14px;
+--mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation 
+Mono", "Courier New", monospace;
+}
+* { box-sizing: border-box; }
+html, body{
+13
+
+margin: 0;
+padding: 0;
+background: radial-gradient(1200px600pxat15% 0%, rgba(45, 212, 191,
+0.12),transparent60%),
+radial-gradient(1000px600pxat90% 10%, rgba(251, 191, 36,
+0.10),transparent55%),
+var(--bg);
+color: var(--text);
+font-family: ui-sans-serif, system-ui, -apple-system, SegoeUI, Roboto,
+Ubuntu, Cantarell, NotoSans, Helvetica, Arial;
+}
+a { color: inherit; text-decoration: none; }
+a:hover{ text-decoration: underline; }
+.container{
+width: min(1100px, calc(100vw- 24px));
+margin: 0 auto;
+}
+.app-header{
+position: sticky;
+top: 0;
+z-index: 10;
+background: rgba(11, 14, 20, 0.72);
+backdrop-filter: blur(10px);
+border-bottom: 1pxsolidvar(--border);
+}
+.header-row{
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 14px0;
+gap: var(--gap);
+}
+.brand-title{
+font-weight: 700;
+letter-spacing: 0.2px;
+}
+.brand-sub{
+font-size: 12px;
+color: var(--muted);
+}
+.nav{
+display: flex;
+gap: 8px;
+flex-wrap: wrap;
+justify-content: flex-end;
+14
+
+}
+.nav-link{
+padding: 8px10px;
+border: 1pxsolidvar(--border);
+border-radius: 999px;
+background: rgba(255, 255, 255, 0.03);
+}
+.nav-link.active{
+border-color: rgba(45, 212, 191, 0.55);
+box-shadow: 0 0 0 2pxrgba(45, 212, 191, 0.12) inset;
+}
+.app-main{ padding: 18px0 40px; }
+h2{ margin: 10px0 10px; }
+h3{ margin: 0 0 10px; }
+h4{ margin: 18px0 10px; }
+.muted{ color: var(--muted);margin-top: 0; }
+.statusbar{
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 10px;
+border: 1pxsolidvar(--border);
+border-radius: var(--radius);
+background: rgba(18, 24, 38, 0.55);
+box-shadow: var(--shadow);
+margin-bottom: 16px;
+}
+.status-pill{
+display: inline-flex;
+gap: 8px;
+align-items: center;
+padding: 6px10px;
+border: 1pxsolidvar(--border);
+border-radius: 999px;
+background: rgba(255, 255, 255, 0.03);
+font-size: 13px;
+}
+.status-label{ color: var(--muted);}
+.status-spacer{ flex: 1; }
+.grid-2{
+display: grid;
+grid-template-columns: 1fr1fr;
+gap: var(--gap);
+}
+.grid-3{
+15
+
+display: grid;
+grid-template-columns: 1fr1fr1fr;
+gap: var(--gap);
+}
+.grid-4{
+display: grid;
+grid-template-columns: 1fr1fr1fr1fr;
+gap: var(--gap);
+}
+@media(max-width: 920px) {
+.grid-2, .grid-3, .grid-4{ grid-template-columns: 1fr; }
+}
+.card{
+border: 1pxsolidvar(--border);
+border-radius: var(--radius);
+background: linear-gradient(180deg, rgba(18, 24, 38, 0.68),rgba(15, 20,
+32, 0.65));
+box-shadow: var(--shadow);
+padding: 14px;
+}
+.form{ display: grid; gap: 10px; }
+label{ display: grid; gap: 6px; font-size: 13px; color: var(--muted);}
+input, select, textarea{
+padding: 10px10px;
+border-radius: 12px;
+border: 1pxsolidvar(--border);
+background: rgba(0, 0, 0, 0.20);
+color: var(--text);
+outline: none;
+}
+textarea{ font-family: var(--mono);resize: vertical; }
+.row{
+display: flex;
+gap: 10px;
+align-items: center;
+flex-wrap: wrap;
+}
+.row-spaced{ margin-top: 10px; }
+.btn{
+appearance: none;
+border: 1pxsolidrgba(45, 212, 191, 0.45);
+background: rgba(45, 212, 191, 0.14);
+color: var(--text);
+padding: 10px12px;
+border-radius: 12px;
+cursor: pointer;
+16
+
+font-weight: 600;
+}
+.btn:hover{ background: rgba(45, 212, 191, 0.20);}
+.btn:active{ transform: translateY(1px);}
+.btn-ghost{
+border-color: var(--border);
+background: rgba(255, 255, 255, 0.04);
+}
+.btn-ghost:hover{ background: rgba(255, 255, 255, 0.08);}
+.btn-danger{
+border-color: rgba(251, 113, 133, 0.50);
+background: rgba(251, 113, 133, 0.14);
+}
+.btn-danger:hover{ background: rgba(251, 113, 133, 0.20);}
+.file-btninput[type="file"] { display: none; }
+.notice{
+padding: 12px;
+border: 1pxdashedvar(--border);
+border-radius: var(--radius);
+background: rgba(255, 255, 255, 0.04);
+}
+.hint{
+font-size: 12px;
+color: var(--muted);
+line-height: 1.35;
+}
+.check{
+display: flex;
+gap: 10px;
+align-items: center;
+color: var(--text);
+font-size: 13px;
+}
+.checkinput{ width: 18px; height: 18px; }
+.hidden{ display: none!important; }
+.table-wrap{ overflow: auto; border-radius: 12px; border: 1pxsolidvar(--
+border);}
+table{
+width: 100%;
+border-collapse: collapse;
+min-width: 980px;
+background: rgba(0,0,0,0.18);
+}
+17
+
+th, td{
+padding: 10px10px;
+border-bottom: 1pxsolidvar(--border);
+vertical-align: top;
+font-size: 12px;
+}
+th{
+position: sticky;
+top: 0;
+background: rgba(18, 24, 38, 0.95);
+text-align: left;
+color: var(--muted);
+font-weight: 700;
+}
+td.mono{ font-family: var(--mono);}
+.badge{
+display: inline-flex;
+align-items: center;
+padding: 4px8px;
+border-radius: 999px;
+border: 1pxsolidvar(--border);
+font-size: 12px;
+background: rgba(255,255,255,0.04);
+color: var(--muted);
+gap: 8px;
+}
+.badge.good{ border-color: rgba(45, 212, 191, 0.45);color: var(--good);}
+.badge.warn{ border-color: rgba(251, 191, 36, 0.45);color: var(--warn);}
+.badge.bad{ border-color: rgba(251, 113, 133, 0.50);color: var(--bad);}
+.detailssummary{ cursor: pointer; color: var(--text);margin: 8px0; }
+.toast{
+position: fixed;
+left: 50%;
+bottom: 18px;
+transform: translateX(-50%);
+padding: 10px12px;
+border-radius: 999px;
+border: 1pxsolidvar(--border);
+background: rgba(18, 24, 38, 0.92);
+box-shadow: var(--shadow);
+font-size: 13px;
+}
+js/faq.js
+exportconstFAQ_HTML= `
+  <div class="card">
+    <h3>O que este simulador é (e o que não é)</h3>
+18
+
+    <p class="muted">
+      Este app é um <b>simulador simples</b> para organizar fluxo de caixa, 
+correção por índice e
+      financiamento em cenários de compra de imóvel na planta. Ele não 
+substitui planilhas avançadas,
+      nem análise jurídica/financeira profissional.
+    </p>
+  </div>
+  <div class="card">
+    <h3>Como a correção por índice funciona aqui</h3>
+    <p class="muted">
+      Você cadastra variações mensais em % por mês (YYYY-MM). O app calcula 
+um fator acumulado e
+      multiplica o preço-base e (opcionalmente) itens marcados com “Aplicar 
+correção”.
+      Se um mês não tiver taxa cadastrada, o app considera 0% naquele mês (e 
+segue).
+    </p>
+    <p class="muted">
+      Para INCC, use uma série mensal e mantenha o cadastro atualizado 
+conforme sua fonte preferida.
+    </p>
+  </div>
+  <div class="card">
+    <h3>Fluxo de caixa: tipos</h3>
+    <p class="muted">
+      <b>Mensal</b>: repete todo mês do período (início → fim).<br/>
+      <b>Balão</b>: um pagamento grande em um mês específico (normalmente 
+“intermediária”).<br/>
+      <b>Único</b>: custos pontuais (ex.: ITBI, cartório, mudança).
+    </p>
+  </div>
+  <div class="card">
+    <h3>Financiamento (SAC e PRICE) – simplificação</h3>
+    <p class="muted">
+      O financiamento parte do saldo estimado no mês de início:
+      <b>valor do contrato (corrigido)</b> menos <b>pagamentos que abatem 
+principal</b> antes do início.
+      Depois gera a tabela mensal por SAC ou PRICE.
+    </p>
+    <p class="muted">
+      Observação: bancos podem usar regras adicionais (seguros, CET, taxas, 
+datas de corte),
+      então use este resultado como referência de cenário.
+    </p>
+  </div>
+  <div class="card">
+19
+
+    <h3>Como rodar</h3>
+    <p class="muted">
+      Este projeto usa ES Modules. Rode com um servidor local (ex.: VSCode 
+Live Server).
+      Abrir o HTML direto via <code>file://</code> pode falhar em alguns 
+navegadores.
+    </p>
+  </div>
+`;
+js/storage.js
+constSTORAGE_KEY= "APTO_SIM_DB_V1";
+functionnowIso(){
+returnnewDate().toISOString();
+}
+functionsafeJsonParse(text) {
+try{
+returnJSON.parse(text);
+} catch{
+returnnull;
+}
+}
+functiongenId(prefix) {
+// Preferir UUID; fallback simples.
+if(typeofcrypto!=="undefined"&&crypto.randomUUID) {
+return`${prefix}_${crypto.randomUUID()}`;
+}
+return`${prefix}_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+functionisLocalStorageAvailable(){
+try{
+constk = "__apto_test__";
+window.localStorage.setItem(k, "1");
+window.localStorage.removeItem(k);
+returntrue;
+} catch{
+returnfalse;
+}
+}
+functionseedDb(){
+constcreatedAt= nowIso();
+constproject1= {
+id: genId("p"),
+20
+
+name: "Residencial Vista Park",
+city: "São Paulo",
+uf: "SP",
+developer: "Construtora Exemplo S.A.",
+createdAt,
+updatedAt: createdAt,
+};
+// Série exemplo de INCC (valores fictícios só para demonstrar).
+constidx1= {
+id: genId("idx"),
+name: "INCC (exemplo)",
+note: "Valores fictícios para demonstração",
+source: "manual",
+monthlyPct: {
+"2026-02": 0.20,
+"2026-03": 0.25,
+"2026-04": 0.30,
+"2026-05": 0.28,
+"2026-06": 0.26,
+"2026-07": 0.22,
+"2026-08": 0.24,
+"2026-09": 0.27,
+"2026-10": 0.23,
+"2026-11": 0.21,
+"2026-12": 0.19,
+},
+createdAt,
+updatedAt: createdAt,
+};
+constsim1= {
+id: genId("s"),
+projectId: project1.id,
+name: "Cenário base",
+contractDate: "2026-02-01",
+deliveryDate: "2028-06-30",
+toleranceDays: 180,
+basePrice: 500000,
+flags: {
+hasQuadroResumo: false,
+brokerFeeConfirmed: false,
+itbiProvisioned: false,
+},
+correction: {
+enabled: true,
+seriesId: idx1.id,
+note: "INCC (exemplo)",
+},
+21
+
+financing: {
+enabled: true,
+type: "SAC",
+months: 240,
+annualRatePct: 10.0,
+startDate: "2028-07-01",
+},
+cashflow: [
+{
+id: genId("cf"),
+kind: "once",
+label: "Sinal / Entrada",
+amount: 50000,
+dueDate: "2026-02-10",
+startDate: null,
+endDate: null,
+applyCorrection: false,
+affectsPrincipal: true,
+},
+{
+id: genId("cf"),
+kind: "monthly",
+label: "Parcelas obra",
+amount: 3000,
+startDate: "2026-03-01",
+endDate: "2028-05-01",
+dueDate: null,
+applyCorrection: true,
+affectsPrincipal: true,
+},
+{
+id: genId("cf"),
+kind: "balloon",
+label: "Intermediária",
+amount: 20000,
+dueDate: "2027-12-05",
+startDate: null,
+endDate: null,
+applyCorrection: true,
+affectsPrincipal: true,
+},
+{
+id: genId("cf"),
+kind: "once",
+label: "ITBI (provisão)",
+amount: 15000,
+dueDate: "2028-07-10",
+startDate: null,
+endDate: null,
+22
+
+applyCorrection: false,
+affectsPrincipal: false,
+},
+],
+createdAt,
+updatedAt: createdAt,
+};
+return{
+version: 1,
+createdAt,
+updatedAt: createdAt,
+projects: [project1],
+simulations: [sim1],
+indexSeries: [idx1],
+};
+}
+functionreadDbRaw(){
+if(!isLocalStorageAvailable()){
+returnnull;
+}
+consttext= window.localStorage.getItem(STORAGE_KEY);
+if(!text) returnnull;
+returnsafeJsonParse(text);
+}
+functionwriteDbRaw(db) {
+if(!isLocalStorageAvailable()){
+thrownewError("localStorage indisponível neste navegador/sessão.");
+}
+window.localStorage.setItem(STORAGE_KEY, JSON.stringify(db));
+}
+functionnormalizeDb(db) {
+// Normalização mínima para evitar quebra em versões futuras.
+if(!db||typeofdb!=="object") returnnull;
+if(db.version!==1) returnnull;
+db.projects||=[];
+db.simulations||=[];
+db.indexSeries||=[];
+db.createdAt||=nowIso();
+db.updatedAt||=nowIso();
+returndb;
+}
+exportfunctionensureDb(){
+constexisting= normalizeDb(readDbRaw());
+if(existing) returnexisting;
+23
+
+constfresh= seedDb();
+try{
+writeDbRaw(fresh);
+} catch{
+// Se não conseguir escrever, ainda retorna seed para rodar (sem 
+persistência).
+}
+returnfresh;
+}
+exportfunctiongetDb(){
+constdb= normalizeDb(readDbRaw());
+if(db) returndb;
+// fallback: garantir seed no fluxo normal
+returnensureDb();
+}
+exportfunctionreplaceDb(db) {
+constnormalized= normalizeDb(db);
+if(!normalized) thrownewError("JSON inválido ou versão incompatível.");
+normalized.updatedAt= nowIso();
+writeDbRaw(normalized);
+returnnormalized;
+}
+exportfunctionresetDbToSeed(){
+constfresh= seedDb();
+writeDbRaw(fresh);
+returnfresh;
+}
+exportfunctionexportDbJson(){
+constdb= getDb();
+returnJSON.stringify(db, null, 2);
+}
+exportfunctionimportDbJson(jsonText) {
+constparsed= safeJsonParse(jsonText);
+if(!parsed) thrownewError("JSON inválido.");
+returnreplaceDb(parsed);
+}
+/* Projects CRUD */
+exportfunctionlistProjects(db) {
+return[...db.projects].sort((a, b) =>a.name.localeCompare(b.name));
+}
+exportfunctiongetProject(db, projectId) {
+returndb.projects.find((p) =>p.id===projectId) ||null;
+24
+
+}
+exportfunctionsaveProject(db, payload) {
+constt = nowIso();
+constuf= String(payload.uf||"").trim().toUpperCase();
+if(payload.id) {
+constidx= db.projects.findIndex((p) =>p.id===payload.id);
+if(idx===-1) thrownewError("Projeto não encontrado.");
+db.projects[idx] = {
+...db.projects[idx],
+name: String(payload.name||"").trim(),
+city: String(payload.city||"").trim(),
+uf,
+developer: String(payload.developer||"").trim(),
+updatedAt: t,
+};
+} else{
+db.projects.push({
+id: genId("p"),
+name: String(payload.name||"").trim(),
+city: String(payload.city||"").trim(),
+uf,
+developer: String(payload.developer||"").trim(),
+createdAt: t,
+updatedAt: t,
+});
+}
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+exportfunctiondeleteProject(db, projectId) {
+db.projects= db.projects.filter((p) =>p.id!==projectId);
+db.simulations= db.simulations.filter((s) =>s.projectId!==projectId);
+db.updatedAt= nowIso();
+writeDbRaw(db);
+returndb;
+}
+/* Simulations CRUD */
+exportfunctionlistSimulationsByProject(db, projectId) {
+returndb.simulations
+.filter((s) =>s.projectId===projectId)
+.sort((a, b) =>a.name.localeCompare(b.name));
+}
+25
+
+exportfunctiongetSimulation(db, simId) {
+returndb.simulations.find((s) =>s.id===simId) ||null;
+}
+exportfunctionsaveSimulation(db, projectId, payload) {
+constt = nowIso();
+constbasePrice= Number(payload.basePrice||0);
+consttoleranceDays= Number(payload.toleranceDays||0);
+if(payload.id) {
+constidx= db.simulations.findIndex((s) =>s.id===payload.id);
+if(idx===-1) thrownewError("Simulação não encontrada.");
+db.simulations[idx] = {
+...db.simulations[idx],
+name: String(payload.name||"").trim(),
+contractDate: payload.contractDate||db.simulations[idx].contractDate,
+deliveryDate: payload.deliveryDate||db.simulations[idx].deliveryDate,
+toleranceDays: Number.isFinite(toleranceDays) ? toleranceDays: 0,
+basePrice: Number.isFinite(basePrice) ? basePrice: 0,
+updatedAt: t,
+};
+} else{
+db.simulations.push({
+id: genId("s"),
+projectId,
+name: String(payload.name||"").trim(),
+contractDate: payload.contractDate,
+deliveryDate: payload.deliveryDate,
+toleranceDays: Number.isFinite(toleranceDays) ? toleranceDays: 0,
+basePrice: Number.isFinite(basePrice) ? basePrice: 0,
+flags: {
+hasQuadroResumo: false,
+brokerFeeConfirmed: false,
+itbiProvisioned: false,
+},
+correction: {
+enabled: false,
+seriesId: db.indexSeries[0]?.id||null,
+note: "",
+},
+financing: {
+enabled: false,
+type: "SAC",
+months: 240,
+annualRatePct: 10.0,
+startDate: payload.deliveryDate,
+26
+
+},
+cashflow: [],
+createdAt: t,
+updatedAt: t,
+});
+}
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+exportfunctiondeleteSimulation(db, simId) {
+db.simulations= db.simulations.filter((s) =>s.id!==simId);
+db.updatedAt= nowIso();
+writeDbRaw(db);
+returndb;
+}
+/* Cashflow CRUD (dentro da simulação) */
+exportfunctionsaveCashflowItem(db, simId, payload) {
+constt = nowIso();
+constsimIdx= db.simulations.findIndex((s) =>s.id===simId);
+if(simIdx===-1) thrownewError("Simulação não encontrada.");
+constsim= db.simulations[simIdx];
+sim.cashflow||=[];
+constitem= {
+id: payload.id||genId("cf"),
+kind: payload.kind,
+label: String(payload.label||"").trim(),
+amount: Number(payload.amount||0),
+startDate: payload.startDate||null,
+endDate: payload.endDate||null,
+dueDate: payload.dueDate||null,
+applyCorrection: Boolean(payload.applyCorrection),
+affectsPrincipal: Boolean(payload.affectsPrincipal),
+};
+constexistingIdx= sim.cashflow.findIndex((x) =>x.id===item.id);
+if(existingIdx>=0) {
+sim.cashflow[existingIdx] = { ...sim.cashflow[existingIdx],...item};
+} else{
+sim.cashflow.push(item);
+}
+sim.updatedAt= t;
+db.updatedAt= t;
+27
+
+writeDbRaw(db);
+returndb;
+}
+exportfunctiondeleteCashflowItem(db, simId, cashflowId) {
+constt = nowIso();
+constsim= getSimulation(db, simId);
+if(!sim) thrownewError("Simulação não encontrada.");
+sim.cashflow= (sim.cashflow||[]).filter((x) =>x.id!==cashflowId);
+sim.updatedAt= t;
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+/* Correção / Séries */
+exportfunctionlistIndexSeries(db) {
+return[...db.indexSeries].sort((a, b) =>a.name.localeCompare(b.name));
+}
+exportfunctiongetIndexSeries(db, seriesId) {
+returndb.indexSeries.find((x) =>x.id===seriesId) ||null;
+}
+exportfunctionupsertIndexSeries(db, payload) {
+constt = nowIso();
+constitem= {
+id: payload.id||genId("idx"),
+name: String(payload.name||"").trim()||"Série sem nome",
+note: String(payload.note||"").trim(),
+source: payload.source||"manual",
+monthlyPct: payload.monthlyPct||{},
+createdAt: payload.createdAt||t,
+updatedAt: t,
+};
+constidx= db.indexSeries.findIndex((x) =>x.id===item.id);
+if(idx>=0) db.indexSeries[idx] = { ...db.indexSeries[idx],...item};
+elsedb.indexSeries.push(item);
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+/* Flags da simulação */
+exportfunctionsaveSimFlags(db, simId, flagsPatch) {
+constt = nowIso();
+28
+
+constsim= getSimulation(db, simId);
+if(!sim) thrownewError("Simulação não encontrada.");
+sim.flags= { ...(sim.flags||{}),...(flagsPatch||{})};
+sim.updatedAt= t;
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+exportfunctionsaveSimCorrection(db, simId, patch) {
+constt = nowIso();
+constsim= getSimulation(db, simId);
+if(!sim) thrownewError("Simulação não encontrada.");
+sim.correction= { ...(sim.correction||{}),...(patch||{})};
+sim.updatedAt= t;
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+exportfunctionsaveSimFinancing(db, simId, patch) {
+constt = nowIso();
+constsim= getSimulation(db, simId);
+if(!sim) thrownewError("Simulação não encontrada.");
+sim.financing= { ...(sim.financing||{}),...(patch||{})};
+sim.updatedAt= t;
+db.updatedAt= t;
+writeDbRaw(db);
+returndb;
+}
+export{ STORAGE_KEY};
+js/calc.js
+functionpad2(n) {
+returnString(n).padStart(2, "0");
+}
+exportfunctiontoMonthKey(dateIsoOrMonthKey) {
+if(!dateIsoOrMonthKey) returnnull;
+consts = String(dateIsoOrMonthKey);
+if(/^\d{4}-\d{2}$/.test(s))returns;
+if(/^\d{4}-\d{2}-\d{2}$/.test(s))returns.slice(0, 7);
+returnnull;
+}
+29
+
+exportfunctionmonthKeyToLabel(monthKey) {
+const[y, m] = monthKey.split("-").map(Number);
+return`${pad2(m)}/${y}`;
+}
+exportfunctionaddMonthsToMonthKey(monthKey, delta) {
+const[y0, m0] = monthKey.split("-").map(Number);
+consttotal= (y0* 12+ (m0- 1))+ delta;
+consty = Math.floor(total/ 12);
+constm = (total% 12) + 1;
+return`${y}-${pad2(m)}`;
+}
+exportfunctionmonthKeyCompare(a, b) {
+returna.localeCompare(b);
+}
+exportfunctionmonthKeysBetween(startKey, endKey) {
+if(!startKey||!endKey) return[];
+if(startKey> endKey) return[];
+constout= [];
+letcur= startKey;
+while(cur<=endKey) {
+out.push(cur);
+cur= addMonthsToMonthKey(cur, 1);
+}
+returnout;
+}
+functionmaxMonthKey(a, b) {
+if(!a) returnb;
+if(!b) returna;
+returna > b ? a : b;
+}
+/* ===========================
+   Correção por índice (mensal)
+   =========================== */
+exportfunctionbuildCumulativeFactors(startKey, endKey, monthlyPct,
+enabled) {
+constfactors= {};
+constkeys= monthKeysBetween(startKey, endKey);
+if(!enabled) {
+for(constk ofkeys) factors[k] = 1;
+returnfactors;
+}
+if(keys.length===0) returnfactors;
+30
+
+factors[keys[0]]= 1;
+for(leti = 1; i < keys.length; i++) {
+constk = keys[i];
+constprev= keys[i - 1];
+constpct= Number(monthlyPct?.[k] ??0);
+constr = (Number.isFinite(pct) ? pct: 0) / 100;
+factors[k] = factors[prev] * (1 + r);
+}
+returnfactors;
+}
+/* ===========================
+   Fluxo de caixa → mês
+   =========================== */
+exportfunctioncashflowItemsInMonth(sim, monthKey) {
+constitems= sim.cashflow||[];
+constout= [];
+for(constitofitems) {
+constkind= it.kind;
+if(kind==="monthly") {
+consta = toMonthKey(it.startDate);
+constb = toMonthKey(it.endDate);
+if(a &&b &&monthKey>=a &&monthKey<=b) out.push(it);
+continue;
+}
+if(kind==="balloon"||kind==="once") {
+constd = toMonthKey(it.dueDate);
+if(d ===monthKey) out.push(it);
+continue;
+}
+}
+returnout;
+}
+exportfunctiongetLastCashflowMonth(sim) {
+letlast= null;
+for(constitofsim.cashflow||[]){
+if(it.kind==="monthly") {
+last= maxMonthKey(last, toMonthKey(it.endDate));
+} else{
+last= maxMonthKey(last, toMonthKey(it.dueDate));
+}
+}
+31
+
+returnlast;
+}
+/* ===========================
+   Financiamento (SAC / PRICE)
+   =========================== */
+exportfunctionannualToMonthlyRate(annualPct) {
+consta = (Number(annualPct||0) / 100);
+if(!Number.isFinite(a) ||a <=0) return0;
+returnMath.pow(1 + a, 1 / 12) - 1;
+}
+exportfunctionscheduleSAC(pv, monthlyRate, n, startMonthKey) {
+constout= [];
+constPV= Math.max(0, Number(pv||0));
+consti = Math.max(0, Number(monthlyRate||0));
+constN = Math.max(1, Math.floor(Number(n ||1)));
+constamort= PV/ N;
+letbal= PV;
+for(letk = 1; k <=N; k++) {
+constinterest= bal* i;
+constinstallment= amort+ interest;
+bal= Math.max(0, bal- amort);
+out.push({
+k,
+monthKey: addMonthsToMonthKey(startMonthKey, k - 1),
+installment,
+interest,
+amort,
+balance: bal,
+});
+}
+returnout;
+}
+exportfunctionschedulePRICE(pv, monthlyRate, n, startMonthKey) {
+constout= [];
+constPV= Math.max(0, Number(pv||0));
+consti = Math.max(0, Number(monthlyRate||0));
+constN = Math.max(1, Math.floor(Number(n ||1)));
+letinstallment= 0;
+if(i ===0) {
+installment= PV/ N;
+} else{
+32
+
+constpow= Math.pow(1 + i, N);
+constk = (i * pow) / (pow- 1);
+installment= PV* k;
+}
+letbal= PV;
+for(lett = 1; t <=N; t++) {
+constinterest= bal* i;
+constamort= installment- interest;
+bal= Math.max(0, bal- amort);
+out.push({
+k: t,
+monthKey: addMonthsToMonthKey(startMonthKey, t - 1),
+installment,
+interest,
+amort,
+balance: bal,
+});
+}
+returnout;
+}
+/* ===========================
+   Resultado final (timeline)
+   =========================== */
+exportfunctioncomputeSimulationResults(sim, indexSeries) {
+constcontractMonth= toMonthKey(sim.contractDate);
+if(!contractMonth) thrownewError("Data do contrato inválida.");
+constcorrEnabled= Boolean(sim.correction?.enabled);
+constmonthlyPct= indexSeries?.monthlyPct||{};
+constlastCashflow= getLastCashflowMonth(sim);
+constfinStart= sim.financing?.enabled?
+toMonthKey(sim.financing?.startDate) : null;
+letendMonth= maxMonthKey(contractMonth, lastCashflow);
+if(sim.financing?.enabled&&finStart) {
+constfinEnd= addMonthsToMonthKey(finStart, Math.max(1,
+Number(sim.financing.months||1))- 1);
+endMonth= maxMonthKey(endMonth, finEnd);
+}
+// Garantir pelo menos até mês da entrega
+endMonth= maxMonthKey(endMonth, toMonthKey(sim.deliveryDate));
+constfactors= buildCumulativeFactors(contractMonth, endMonth,
+33
+
+monthlyPct, corrEnabled);
+constmonths= monthKeysBetween(contractMonth, endMonth);
+consttimeline= [];
+// 1) Construir timeline com fluxo de caixa (sem financiamento).
+for(constm ofmonths) {
+constidxPct= Number(monthlyPct?.[m] ??0);
+constfactor= Number(factors?.[m] ??1);
+constcontractValue= Number(sim.basePrice||0);
+constcontractCorrected= corrEnabled? (contractValue* factor) :
+contractValue;
+constmonthItems= cashflowItemsInMonth(sim, m).map((it) =>{
+constbase= Number(it.amount||0);
+constamount= (corrEnabled&&it.applyCorrection) ? (base* factor) :
+base;
+return{
+id: it.id,
+kind: it.kind,
+label: it.label,
+baseAmount: base,
+amount,
+applyCorrection: Boolean(it.applyCorrection),
+affectsPrincipal: Boolean(it.affectsPrincipal),
+};
+});
+constcashflowTotal= monthItems.reduce((acc, x) =>acc+ x.amount, 0);
+constcashflowPrincipal= monthItems.filter((x) =>
+x.affectsPrincipal).reduce((acc, x) =>acc+ x.amount, 0);
+constcashflowExtra= monthItems.filter((x) =>!
+x.affectsPrincipal).reduce((acc, x) =>acc+ x.amount, 0);
+timeline.push({
+monthKey: m,
+monthLabel: monthKeyToLabel(m),
+indexPct: Number.isFinite(idxPct) ? idxPct: 0,
+factor,
+contractCorrected,
+cashflowItems: monthItems,
+cashflowTotal,
+cashflowPrincipal,
+cashflowExtra,
+finInstallment: 0,
+34
+
+finInterest: 0,
+finAmort: 0,
+finBalance: null,
+});
+}
+// 2) Financiamento: calcular PV no mês de início, com base no saldo 
+corrigido menos principal pago antes.
+letfinancing= null;
+if(sim.financing?.enabled&&finStart) {
+constannualPct= Number(sim.financing.annualRatePct||0);
+constmonthlyRate= annualToMonthlyRate(annualPct);
+constn = Math.max(1, Math.floor(Number(sim.financing.months||1)));
+constidxStart= timeline.findIndex((x) =>x.monthKey===finStart);
+if(idxStart>=0) {
+constprePaidPrincipal= timeline
+.slice(0, idxStart)
+.reduce((acc, x) =>acc+ x.cashflowPrincipal, 0);
+constcontractAtStart= timeline[idxStart].contractCorrected;
+constpv= Math.max(0, contractAtStart- prePaidPrincipal);
+constschedule=
+(sim.financing.type==="PRICE")
+? schedulePRICE(pv, monthlyRate, n, finStart)
+: scheduleSAC(pv, monthlyRate, n, finStart);
+// Merge
+for(consts ofschedule) {
+constrow= timeline.find((x) =>x.monthKey===s.monthKey);
+if(!row) continue;
+row.finInstallment= s.installment;
+row.finInterest= s.interest;
+row.finAmort= s.amort;
+row.finBalance= s.balance;
+}
+consttotalInstallments= schedule.reduce((acc, x) =>acc+
+x.installment, 0);
+consttotalInterest= schedule.reduce((acc, x) =>acc+ x.interest, 0);
+consttotalAmort= schedule.reduce((acc, x) =>acc+ x.amort, 0);
+financing= {
+enabled: true,
+type: sim.financing.type,
+startMonthKey: finStart,
+months: n,
+annualRatePct: annualPct,
+35
+
+monthlyRate,
+pv,
+prePaidPrincipal,
+contractAtStart,
+totalInstallments,
+totalInterest,
+totalAmort,
+};
+}
+}
+// 3) Totais (por “fase” simples)
+consttotalCashflow= timeline.reduce((acc, x) =>acc+ x.cashflowTotal,
+0);
+consttotalCashflowPrincipal= timeline.reduce((acc, x) =>acc+
+x.cashflowPrincipal, 0);
+consttotalCashflowExtra= timeline.reduce((acc, x) =>acc+
+x.cashflowExtra, 0);
+consttotalFinInstallments= timeline.reduce((acc, x) =>acc+
+x.finInstallment, 0);
+consttotalFinInterest= timeline.reduce((acc, x) =>acc+ x.finInterest,
+0);
+// “Pago total” = cashflow (inclui extras) + parcelas do financiamento
+consttotalPaid= totalCashflow+ totalFinInstallments;
+consttotals= {
+basePrice: Number(sim.basePrice||0),
+totalCashflow,
+totalCashflowPrincipal,
+totalCashflowExtra,
+totalFinInstallments,
+totalFinInterest,
+totalPaid,
+};
+return{ timeline, totals, financing, meta: { contractMonth, endMonth,
+corrEnabled} };
+}
+/* ===========================
+   Opcional: fetch SGS (BCB)
+   =========================== */
+// Esta função é opcional/isolada. Ela NÃO é necessária para o app funcionar.
+// Retorna uma lista: [{ data: "dd/MM/aaaa", valor: "0.21" }, ...]
+exportasyncfunctionfetchBcbSgsSeries(seriesCode, startDate, endDate) {
+constcode= String(seriesCode||"").trim();
+if(!code) thrownewError("Informe um código de série (SGS).");
+36
+
+// BCB/SGS JSON:
+// https://api.bcb.gov.br/dados/serie/bcdata.sgs.{codigo_serie}/dados?
+formato=json&dataInicial=dd/MM/aaaa&dataFinal=dd/MM/aaaa
+consttoBr= (iso) =>{
+if(!iso) returnnull;
+const[y, m, d] = iso.split("-");
+return`${d}/${m}/${y}`;
+};
+constdi= toBr(startDate);
+constdf= toBr(endDate);
+leturl= `https://api.bcb.gov.br/dados/serie/bcdata.sgs.${code}/dados?
+formato=json`;
+if(di) url+=`&dataInicial=${encodeURIComponent(di)}`;
+if(df) url+=`&dataFinal=${encodeURIComponent(df)}`;
+constres= awaitfetch(url, { method: "GET"});
+if(!res.ok) {
+consttext= awaitres.text();
+thrownewError(`BCB/SGS falhou (${res.status}). ${text.slice(0, 200)}`);
+}
+constdata= awaitres.json();
+if(!Array.isArray(data))thrownewError("Resposta inesperada do SGS.");
+returndata;
+}
+// Converte retorno SGS (datas dd/MM/aaaa com valor string) em mapa mensal 
+YYYY-MM -> percent
+exportfunctionsgsJsonToMonthlyPctMap(sgsArray) {
+constout= {};
+for(constrowofsgsArray||[]){
+constd = String(row.data||"");
+constv = Number(String(row.valor||"").replace(",", "."));
+if(!d ||!Number.isFinite(v))continue;
+// d = dd/MM/aaaa
+const[dd, mm, yyyy] = d.split("/");
+if(!yyyy||!mm) continue;
+constkey= `${yyyy}-${mm}`;
+// Se for série diária, haverá repetição do mesmo mês. Aqui pegamos a 
+última ocorrência.
+out[key] = v;
+}
+returnout;
+}
+37
+
+js/risks.js
+import{ toMonthKey} from"./calc.js";
+functioncontainsItbi(sim) {
+constitems= sim.cashflow||[];
+for(constitofitems) {
+constlabel= String(it.label||"").toLowerCase();
+if(label.includes("itbi"))returntrue;
+}
+returnfalse;
+}
+exportfunctionbuildRiskFlags(project, sim) {
+constflags= [];
+consthasQuadro= Boolean(sim.flags?.hasQuadroResumo);
+constcorrOk= Boolean(sim.flags?.brokerFeeConfirmed);
+constitbiOk= Boolean(sim.flags?.itbiProvisioned) ||containsItbi(sim);
+consttol= Number(sim.toleranceDays||0);
+if(!hasQuadro) {
+flags.push({
+id: "missing_quadro",
+severity: "bad",
+title: "Quadro-resumo não confirmado",
+detail: "Risco de faltar informação essencial (preço, índices, 
+corretagem, sistema de amortização etc.).",
+});
+}
+if(!corrOk) {
+flags.push({
+id: "broker_fee",
+severity: "warn",
+title: "Corretagem não confirmada",
+detail: "Confirme valor, condições e beneficiário; evite surpresa no 
+caixa.",
+});
+}
+if(!itbiOk) {
+flags.push({
+id: "itbi",
+severity: "warn",
+title: "ITBI não provisionado",
+detail: "Inclua ITBI e custos de registro/transferência no 
+planejamento.",
+});
+}
+38
+
+if(tol> 180) {
+flags.push({
+id: "tolerance_days",
+severity: "bad",
+title: "Tolerância acima de 180 dias",
+detail: `Você definiu $
+{tol} dias. Regra simples do simulador: acima de 180 acende alerta.`,
+});
+}
+// Heurística extra simples: correção habilitada sem série selecionada.
+if(sim.correction?.enabled&&!sim.correction?.seriesId) {
+flags.push({
+id: "corr_missing_series",
+severity: "warn",
+title: "Correção habilitada sem série",
+detail: "Selecione ou cadastre uma série mensal para a correção 
+funcionar.",
+});
+}
+// Financiamento habilitado sem startDate
+if(sim.financing?.enabled&&!toMonthKey(sim.financing?.startDate)){
+flags.push({
+id: "fin_missing_start",
+severity: "warn",
+title: "Financiamento sem data de início",
+detail:
+"Defina a data de início do financiamento (mês) para simular as parcelas.",
+});
+}
+returnflags;
+}
+js/render.js
+import{ monthKeyToLabel} from"./calc.js";
+functionesc(s) {
+returnString(s ??"")
+.replaceAll("&", "&amp;")
+.replaceAll("<", "&lt;")
+.replaceAll(">", "&gt;")
+.replaceAll('"', "&quot;");
+}
+exportfunctionfmtBRL(n) {
+constx = Number(n ||0);
+returnx.toLocaleString("pt-BR", { style: "currency", currency: "BRL"});
+39
+
+}
+exportfunctionfmtPct(n) {
+constx = Number(n ||0);
+return`${x.toLocaleString("pt-BR", { minimumFractionDigits: 2,
+maximumFractionDigits: 2 })}%`;
+}
+exportfunctionsetActiveNav(hash) {
+document.querySelectorAll("[data-nav]").forEach((a) =>{
+consthref= a.getAttribute("href") ||"";
+a.classList.toggle("active", href===hash);
+});
+}
+exportfunctionshowView(viewId) {
+document.querySelectorAll(".view").forEach((v) =>
+v.classList.add("hidden"));
+constel= document.getElementById(viewId);
+if(el) el.classList.remove("hidden");
+}
+exportfunctionrenderStatus(project, sim) {
+document.getElementById("status-project").textContent= project?
+project.name: "—";
+document.getElementById("status-sim").textContent= sim? sim.name: "—";
+}
+exportfunctionrenderProjectsList(container, projects, simsCountByProject,
+selectedProjectId) {
+if(!projects.length) {
+container.innerHTML= `<div class="notice">Nenhum projeto. Crie um no 
+formulário ao lado.</div>`;
+return;
+}
+container.innerHTML= projects
+.map((p) =>{
+constcount= simsCountByProject[p.id] ||0;
+constselected= p.id===selectedProjectId;
+return`
+        <div class="row" style="justify-content: space-between; border-
+bottom: 1px solid rgba(255,255,255,0.10); padding: 10px 0;">
+          <div>
+            <div><b>${esc(p.name)}</b></div>
+            <div class="hint">${esc(p.city)} / ${esc(p.uf)} • $
+{esc(p.developer)} • ${count} simulações</div>
+          </div>
+          <div class="row">
+40
+
+            <button class="btn btn-ghost" data-action="project_select" data-
+id="${esc(p.id)}">
+${selected? "Selecionado": "Selecionar"}
+            </button>
+            <button class="btn btn-ghost" data-action="project_edit" data-
+id="${esc(p.id)}">Editar</button>
+            <button class="btn btn-danger" data-action="project_delete" data-
+id="${esc(p.id)}">Excluir</button>
+          </div>
+        </div>
+      `;
+})
+.join("");
+}
+exportfunctionrenderSimsList(container, sims, selectedSimId) {
+if(!sims.length) {
+container.innerHTML= `<div class="notice">Nenhuma simulação neste 
+projeto. Crie uma no formulário ao lado.</div>`;
+return;
+}
+container.innerHTML= sims
+.map((s) =>{
+constselected= s.id===selectedSimId;
+constcontract= s.contractDate? new
+Date(s.contractDate).toLocaleDateString("pt-BR") : "—";
+constdelivery= s.deliveryDate? new
+Date(s.deliveryDate).toLocaleDateString("pt-BR") : "—";
+return`
+        <div class="row" style="justify-content: space-between; border-
+bottom: 1px solid rgba(255,255,255,0.10); padding: 10px 0;">
+          <div>
+            <div><b>${esc(s.name)}</b></div>
+            <div class="hint">
+              Contrato: ${esc(contract)} • Entrega: ${esc(delivery)} • 
+Tolerância: ${Number(s.toleranceDays||0)}d
+              <br/>
+              Preço-base: ${fmtBRL(s.basePrice)}
+            </div>
+          </div>
+          <div class="row">
+            <button class="btn btn-ghost" data-action="sim_select" data-id="$
+{esc(s.id)}">
+${selected? "Selecionado": "Selecionar"}
+            </button>
+            <button class="btn btn-ghost" data-action="sim_edit" data-id="$
+{esc(s.id)}">Editar</button>
+            <button class="btn btn-danger" data-action="sim_delete" data-
+41
+
+id="${esc(s.id)}">Excluir</button>
+          </div>
+        </div>
+      `;
+})
+.join("");
+}
+exportfunctionrenderCashflowTable(container, sim) {
+constitems= sim.cashflow||[];
+if(!items.length) {
+container.innerHTML= `<div class="notice">Nenhum item. Crie o primeiro 
+abaixo.</div>`;
+return;
+}
+constrows= items
+.slice()
+.sort((a, b) =>{
+constma= a.kind==="monthly"? (a.startDate||"") : (a.dueDate||
+"");
+constmb= b.kind==="monthly"? (b.startDate||"") : (b.dueDate||
+"");
+returnma.localeCompare(mb);
+})
+.map((it) =>{
+constwhen= it.kind==="monthly"
+? `${esc(newDate(it.startDate).toLocaleDateString("pt-BR"))} → $
+{esc(newDate(it.endDate).toLocaleDateString("pt-BR"))}`
+: `${esc(newDate(it.dueDate).toLocaleDateString("pt-BR"))}`;
+return`
+        <tr>
+          <td class="mono">${esc(it.kind)}</td>
+          <td>${esc(it.label)}</td>
+          <td class="mono">${when}</td>
+          <td class="mono">${fmtBRL(it.amount)}</td>
+          <td class="mono">${it.applyCorrection? "sim": "não"}</td>
+          <td class="mono">${it.affectsPrincipal? "sim": "não"}</td>
+          <td>
+            <div class="row">
+              <button class="btn btn-ghost" data-action="cashflow_edit" data-
+id="${esc(it.id)}">Editar</button>
+              <button class="btn btn-danger" data-action="cashflow_delete" 
+data-id="${esc(it.id)}">Excluir</button>
+            </div>
+          </td>
+        </tr>
+      `;
+})
+.join("");
+42
+
+container.innerHTML= `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Tipo</th>
+            <th>Descrição</th>
+            <th>Quando</th>
+            <th>Valor base</th>
+            <th>Corrige?</th>
+            <th>Abate principal?</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+exportfunctionrenderIndexSeriesOptions(selectEl, seriesList, selectedId) {
+if(!seriesList.length) {
+selectEl.innerHTML= `<option value="">(Sem séries)</option>`;
+return;
+}
+selectEl.innerHTML= seriesList
+.map((s) =>`<option value="${esc(s.id)}" ${s.id===selectedId?
+"selected": ""}>${esc(s.name)}</option>`)
+.join("");
+}
+exportfunctionrenderTotals(container, results) {
+constt = results.totals;
+constfin= results.financing;
+container.innerHTML= `
+    <div class="row">
+      <span class="badge">Preço-base: <b>${fmtBRL(t.basePrice)}</b></span>
+      <span class="badge">Total cashflow: <b>${fmtBRL(t.totalCashflow)}</b></
+span>
+      <span class="badge">Cashflow (principal): <b>$
+{fmtBRL(t.totalCashflowPrincipal)}</b></span>
+      <span class="badge">Cashflow (extras): <b>$
+{fmtBRL(t.totalCashflowExtra)}</b></span>
+    </div>
+    <div class="row" style="margin-top: 10px;">
+      <span class="badge">Total financiamento (parcelas): <b>$
+{fmtBRL(t.totalFinInstallments)}</b></span>
+43
+
+      <span class="badge">Total juros (fin): <b>${fmtBRL(t.totalFinInterest)}
+</b></span>
+      <span class="badge good">Pago total (cashflow + fin): <b>$
+{fmtBRL(t.totalPaid)}</b></span>
+    </div>
+${
+fin
+? `
+          <div style="margin-top: 12px;">
+            <div class="hint"><b>Financiamento</b></div>
+            <div class="row">
+              <span class="badge">Sistema: <b>${esc(fin.type)}</b></span>
+              <span class="badge">Início: <b>$
+{monthKeyToLabel(fin.startMonthKey)}</b></span>
+              <span class="badge">Prazo: <b>${Number(fin.months)}m</b></span>
+              <span class="badge">Taxa a.a.: <b>${fmtPct(fin.annualRatePct)}
+</b></span>
+              <span class="badge">Taxa a.m. (eq.): <b>$
+{fmtPct(fin.monthlyRate* 100)}</b></span>
+            </div>
+            <div class="row" style="margin-top: 6px;">
+              <span class="badge">Contrato corrigido no início: <b>$
+{fmtBRL(fin.contractAtStart)}</b></span>
+              <span class="badge">Principal pago antes: <b>$
+{fmtBRL(fin.prePaidPrincipal)}</b></span>
+              <span class="badge warn">Saldo p/ financiar (PV): <b>$
+{fmtBRL(fin.pv)}</b></span>
+            </div>
+          </div>
+        `
+: `<div class="hint" style="margin-top: 12px;">Financiamento 
+desabilitado.</div>`
+}
+  `;
+}
+exportfunctionrenderRisks(container, riskFlags) {
+if(!riskFlags.length) {
+container.innerHTML= `<span class="badge good">Nenhum alerta (pelas 
+regras atuais).</span>`;
+return;
+}
+container.innerHTML= riskFlags
+.map((r) =>{
+constcls= r.severity==="bad"? "bad": (r.severity==="warn"?
+"warn": "good");
+return`
+        <div style="margin-bottom: 10px;">
+          <div class="badge ${cls}"><b>${esc(r.title)}</b></div>
+44
+
+          <div class="hint">${esc(r.detail)}</div>
+        </div>
+      `;
+})
+.join("");
+}
+exportfunctionrenderTimeline(container, results) {
+constrows= results.timeline
+.map((m) =>{
+constitems= (m.cashflowItems||[])
+.map((x) =>`${esc(x.label)} (${fmtBRL(x.amount)})`)
+.join("<br/>");
+return`
+        <tr>
+          <td class="mono">${esc(m.monthKey)}</td>
+          <td class="mono">${esc(m.monthLabel)}</td>
+          <td class="mono">${fmtPct(m.indexPct)}</td>
+          <td class="mono">${m.factor.toFixed(6)}</td>
+          <td class="mono">${fmtBRL(m.contractCorrected)}</td>
+          <td>${items||"<span class='hint'>—</span>"}</td>
+          <td class="mono">${fmtBRL(m.cashflowTotal)}</td>
+          <td class="mono">${fmtBRL(m.cashflowPrincipal)}</td>
+          <td class="mono">${fmtBRL(m.cashflowExtra)}</td>
+          <td class="mono">${fmtBRL(m.finInstallment)}</td>
+          <td class="mono">${fmtBRL(m.finInterest)}</td>
+          <td class="mono">${fmtBRL(m.finAmort)}</td>
+          <td class="mono">${m.finBalance===null? "—":
+fmtBRL(m.finBalance)}</td>
+        </tr>
+      `;
+})
+.join("");
+container.innerHTML= `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Mês</th>
+            <th>Label</th>
+            <th>Índice (%)</th>
+            <th>Fator acum.</th>
+            <th>Contrato (corr.)</th>
+            <th>Itens</th>
+            <th>Cashflow</th>
+            <th>CF (principal)</th>
+            <th>CF (extras)</th>
+            <th>Prestação fin</th>
+            <th>Juros</th>
+45
+
+            <th>Amort</th>
+            <th>Saldo</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
+}
+exportfunctiontoast(msg) {
+constel= document.getElementById("toast");
+if(!el) return;
+el.textContent= msg;
+el.classList.remove("hidden");
+window.clearTimeout(toast._t);
+toast._t= window.setTimeout(()=>el.classList.add("hidden"),2200);
+}
+js/app.js
+import{
+ensureDb,
+getDb,
+resetDbToSeed,
+exportDbJson,
+importDbJson,
+listProjects,
+getProject,
+saveProject,
+deleteProject,
+listSimulationsByProject,
+getSimulation,
+saveSimulation,
+deleteSimulation,
+listIndexSeries,
+getIndexSeries,
+upsertIndexSeries,
+saveCashflowItem,
+deleteCashflowItem,
+saveSimFlags,
+saveSimCorrection,
+saveSimFinancing,
+} from"./storage.js";
+46
+
+import{
+computeSimulationResults,
+annualToMonthlyRate,
+fetchBcbSgsSeries,
+sgsJsonToMonthlyPctMap,
+} from"./calc.js";
+import{ buildRiskFlags} from"./risks.js";
+import{
+setActiveNav,
+showView,
+renderStatus,
+renderProjectsList,
+renderSimsList,
+renderCashflowTable,
+renderIndexSeriesOptions,
+renderTotals,
+renderRisks,
+renderTimeline,
+toast,
+fmtPct,
+} from"./render.js";
+import{ FAQ_HTML} from"./faq.js";
+/* ===========================
+   Estado básico
+   =========================== */
+conststate= {
+db: ensureDb(),
+selectedProjectId: null,
+selectedSimId: null,
+lastResultsBySimId: {},// cache em memória
+};
+functionrefreshDb(){
+state.db= getDb();
+}
+functiongetSelectedProject(){
+if(!state.selectedProjectId) returnnull;
+returngetProject(state.db, state.selectedProjectId);
+}
+functiongetSelectedSim(){
+if(!state.selectedSimId) returnnull;
+returngetSimulation(state.db, state.selectedSimId);
+}
+47
+
+functioncomputeSimsCountByProject(db) {
+constmap= {};
+for(consts ofdb.simulations||[]){
+map[s.projectId] = (map[s.projectId] ||0) + 1;
+}
+returnmap;
+}
+/* ===========================
+   Render principal por rota
+   =========================== */
+functionroute(){
+refreshDb();
+consthash= (location.hash||"#projects").split("?")[0];
+setActiveNav(hash);
+constproject= getSelectedProject();
+constsim= getSelectedSim();
+renderStatus(project, sim);
+if(hash==="#projects") {
+showView("view-projects");
+renderProjects();
+return;
+}
+if(hash==="#sims") {
+showView("view-sims");
+renderSims();
+return;
+}
+if(hash==="#editor") {
+showView("view-editor");
+renderEditor();
+return;
+}
+if(hash==="#results") {
+showView("view-results");
+renderResults();
+return;
+}
+if(hash==="#faq") {
+showView("view-faq");
+document.getElementById("faq-content").innerHTML= FAQ_HTML;
+return;
+}
+48
+
+location.hash= "#projects";
+}
+functionrenderProjects(){
+constcontainer= document.getElementById("projects-list");
+constprojects= listProjects(state.db);
+constsimsCount= computeSimsCountByProject(state.db);
+renderProjectsList(container, projects, simsCount,
+state.selectedProjectId);
+// Ajustar título do form conforme seleção de edição
+// (os valores do form são preenchidos ao clicar em "Editar")
+}
+functionrenderSims(){
+constempty= document.getElementById("sims-empty");
+constcontent= document.getElementById("sims-content");
+constproject= getSelectedProject();
+if(!project) {
+empty.classList.remove("hidden");
+content.classList.add("hidden");
+return;
+}
+empty.classList.add("hidden");
+content.classList.remove("hidden");
+constsims= listSimulationsByProject(state.db, project.id);
+renderSimsList(document.getElementById("sims-list"),sims,
+state.selectedSimId);
+}
+functionrenderEditor(){
+constempty= document.getElementById("editor-empty");
+constcontent= document.getElementById("editor-content");
+constsim= getSelectedSim();
+if(!sim) {
+empty.classList.remove("hidden");
+content.classList.add("hidden");
+return;
+}
+empty.classList.add("hidden");
+content.classList.remove("hidden");
+// Flags
+document.getElementById("flag-quadro").checked=
+49
+
+Boolean(sim.flags?.hasQuadroResumo);
+document.getElementById("flag-corretagem").checked=
+Boolean(sim.flags?.brokerFeeConfirmed);
+document.getElementById("flag-itbi").checked=
+Boolean(sim.flags?.itbiProvisioned);
+// Cashflow
+renderCashflowTable(document.getElementById("cashflow-table"),sim);
+syncCashflowKindVisibility();
+// Correção
+constseriesList= listIndexSeries(state.db);
+renderIndexSeriesOptions(
+document.getElementById("corr-series"),
+seriesList,
+sim.correction?.seriesId||(seriesList[0]?.id||"")
+);
+document.getElementById("corr-enabled").checked=
+Boolean(sim.correction?.enabled);
+document.getElementById("corr-note").value= sim.correction?.note||"";
+document.getElementById("corr-json").value= "";
+// Financiamento
+document.getElementById("fin-enabled").checked=
+Boolean(sim.financing?.enabled);
+document.getElementById("fin-type").value= sim.financing?.type||"SAC";
+document.getElementById("fin-months").value= String(sim.financing?.months
+||240);
+document.getElementById("fin-annualRate").value=
+String(sim.financing?.annualRatePct||10.0);
+document.getElementById("fin-startDate").value= sim.financing?.startDate
+||sim.deliveryDate||"";
+updateFinRateHint();
+}
+functionrenderResults(){
+constempty= document.getElementById("results-empty");
+constcontent= document.getElementById("results-content");
+constproject= getSelectedProject();
+constsim= getSelectedSim();
+if(!project||!sim) {
+empty.classList.remove("hidden");
+content.classList.add("hidden");
+return;
+}
+// Precisamos de resultados calculados (via Recalcular) – mas se não tiver 
+cache, calcula na hora.
+50
+
+constresults= state.lastResultsBySimId[sim.id] ||calcNow(sim);
+empty.classList.add("hidden");
+content.classList.remove("hidden");
+renderTotals(document.getElementById("results-totals"),results);
+constrisks= buildRiskFlags(project, sim);
+renderRisks(document.getElementById("results-risks"),risks);
+renderTimeline(document.getElementById("results-timeline"),results);
+}
+functioncalcNow(sim) {
+constseriesId= sim.correction?.seriesId;
+constseries= seriesId? getIndexSeries(state.db, seriesId) : null;
+constres= computeSimulationResults(sim, series);
+state.lastResultsBySimId[sim.id] = res;
+returnres;
+}
+/* ===========================
+   Helpers de formulário
+   =========================== */
+functionclearProjectForm(){
+document.getElementById("project-form-title").textContent= "Novo projeto";
+document.getElementById("project-id").value= "";
+document.getElementById("project-name").value= "";
+document.getElementById("project-city").value= "";
+document.getElementById("project-uf").value= "";
+document.getElementById("project-developer").value= "";
+}
+functionclearSimForm(){
+document.getElementById("sim-form-title").textContent= "Nova simulação";
+document.getElementById("sim-id").value= "";
+document.getElementById("sim-name").value= "";
+document.getElementById("sim-contractDate").value= "";
+document.getElementById("sim-deliveryDate").value= "";
+document.getElementById("sim-toleranceDays").value= "180";
+document.getElementById("sim-basePrice").value= "";
+}
+functionclearCashflowForm(){
+document.getElementById("cashflow-form-title").textContent= "Novo item";
+document.getElementById("cashflow-id").value= "";
+document.getElementById("cashflow-kind").value= "monthly";
+document.getElementById("cashflow-label").value= "";
+document.getElementById("cashflow-amount").value= "";
+document.getElementById("cashflow-startDate").value= "";
+51
+
+document.getElementById("cashflow-endDate").value= "";
+document.getElementById("cashflow-dueDate").value= "";
+document.getElementById("cashflow-corr").checked= true;
+document.getElementById("cashflow-principal").checked= true;
+syncCashflowKindVisibility();
+}
+functionsyncCashflowKindVisibility(){
+constkind= document.getElementById("cashflow-kind").value;
+conststart= document.getElementById("cashflow-startDate");
+constend= document.getElementById("cashflow-endDate");
+constdue= document.getElementById("cashflow-dueDate");
+constisMonthly= kind==="monthly";
+start.disabled= !isMonthly;
+end.disabled= !isMonthly;
+due.disabled= isMonthly;
+}
+functionupdateFinRateHint(){
+constannual= Number(document.getElementById("fin-annualRate").value||
+0);
+constim= annualToMonthlyRate(annual);
+document.getElementById("fin-rate-hint").textContent=
+`Taxa mensal equivalente (aprox.): ${fmtPct(im* 100)} a.m.`;
+}
+/* ===========================
+   Eventos: navegação e ações
+   =========================== */
+window.addEventListener("hashchange", route);
+document.addEventListener("click", async(ev) =>{
+constbtn= ev.target.closest("[data-action]");
+if(!btn) return;
+constaction= btn.getAttribute("data-action");
+constid= btn.getAttribute("data-id");
+try{
+if(action==="project_select") {
+state.selectedProjectId= id;
+state.selectedSimId= null;
+toast("Projeto selecionado.");
+if(location.hash!=="#sims") location.hash= "#sims";
+elseroute();
+return;
+}
+if(action==="project_edit") {
+52
+
+constp = getProject(state.db, id);
+if(!p) return;
+document.getElementById("project-form-title").textContent= "Editar 
+projeto";
+document.getElementById("project-id").value= p.id;
+document.getElementById("project-name").value= p.name;
+document.getElementById("project-city").value= p.city;
+document.getElementById("project-uf").value= p.uf;
+document.getElementById("project-developer").value= p.developer;
+toast("Editando projeto.");
+return;
+}
+if(action==="project_delete") {
+if(!confirm("Excluir este projeto e TODAS as simulações dele?"))
+return;
+constdb= getDb();
+deleteProject(db, id);
+// Ajustar seleção
+if(state.selectedProjectId===id) {
+state.selectedProjectId= null;
+state.selectedSimId= null;
+}
+toast("Projeto excluído.");
+route();
+return;
+}
+if(action==="sim_select") {
+state.selectedSimId= id;
+toast("Simulação selecionada.");
+if(location.hash!=="#editor") location.hash= "#editor";
+elseroute();
+return;
+}
+if(action==="sim_edit") {
+consts = getSimulation(state.db, id);
+if(!s) return;
+document.getElementById("sim-form-title").textContent= "Editar 
+simulação";
+document.getElementById("sim-id").value= s.id;
+document.getElementById("sim-name").value= s.name;
+document.getElementById("sim-contractDate").value= s.contractDate;
+document.getElementById("sim-deliveryDate").value= s.deliveryDate;
+document.getElementById("sim-toleranceDays").value=
+53
+
+String(s.toleranceDays||0);
+document.getElementById("sim-basePrice").value= String(s.basePrice||
+0);
+toast("Editando simulação.");
+return;
+}
+if(action==="sim_delete") {
+if(!confirm("Excluir esta simulação?"))return;
+constdb= getDb();
+deleteSimulation(db, id);
+if(state.selectedSimId===id) {
+state.selectedSimId= null;
+}
+toast("Simulação excluída.");
+route();
+return;
+}
+if(action==="cashflow_edit") {
+constsim= getSelectedSim();
+if(!sim) return;
+constit= (sim.cashflow||[]).find((x) =>x.id===id);
+if(!it) return;
+document.getElementById("cashflow-form-title").textContent= "Editar 
+item";
+document.getElementById("cashflow-id").value= it.id;
+document.getElementById("cashflow-kind").value= it.kind;
+document.getElementById("cashflow-label").value= it.label;
+document.getElementById("cashflow-amount").value= String(it.amount);
+document.getElementById("cashflow-startDate").value= it.startDate||
+"";
+document.getElementById("cashflow-endDate").value= it.endDate||"";
+document.getElementById("cashflow-dueDate").value= it.dueDate||"";
+document.getElementById("cashflow-corr").checked=
+Boolean(it.applyCorrection);
+document.getElementById("cashflow-principal").checked=
+Boolean(it.affectsPrincipal);
+syncCashflowKindVisibility();
+toast("Editando item.");
+return;
+}
+if(action==="cashflow_delete") {
+if(!confirm("Excluir este item?"))return;
+54
+
+constsim= getSelectedSim();
+if(!sim) return;
+constdb= getDb();
+deleteCashflowItem(db, sim.id, id);
+toast("Item excluído.");
+route();
+return;
+}
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* ===========================
+   Form submits
+   =========================== */
+document.getElementById("project-form").addEventListener("submit", (ev) =>{
+ev.preventDefault();
+try{
+constdb= getDb();
+constpayload= {
+id: document.getElementById("project-id").value||null,
+name: document.getElementById("project-name").value,
+city: document.getElementById("project-city").value,
+uf: document.getElementById("project-uf").value,
+developer: document.getElementById("project-developer").value,
+};
+saveProject(db, payload);
+clearProjectForm();
+toast("Projeto salvo.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+document.getElementById("sim-form").addEventListener("submit", (ev) =>{
+ev.preventDefault();
+constproject= getSelectedProject();
+if(!project) {
+alert("Selecione um projeto primeiro.");
+return;
+}
+try{
+constdb= getDb();
+55
+
+constpayload= {
+id: document.getElementById("sim-id").value||null,
+name: document.getElementById("sim-name").value,
+contractDate: document.getElementById("sim-contractDate").value,
+deliveryDate: document.getElementById("sim-deliveryDate").value,
+toleranceDays: document.getElementById("sim-toleranceDays").value,
+basePrice: document.getElementById("sim-basePrice").value,
+};
+saveSimulation(db, project.id, payload);
+clearSimForm();
+toast("Simulação salva.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+document.getElementById("cashflow-form").addEventListener("submit", (ev) =>{
+ev.preventDefault();
+constsim= getSelectedSim();
+if(!sim) {
+alert("Selecione uma simulação primeiro.");
+return;
+}
+try{
+constkind= document.getElementById("cashflow-kind").value;
+constpayload= {
+id: document.getElementById("cashflow-id").value||null,
+kind,
+label: document.getElementById("cashflow-label").value,
+amount: document.getElementById("cashflow-amount").value,
+startDate: document.getElementById("cashflow-startDate").value||null,
+endDate: document.getElementById("cashflow-endDate").value||null,
+dueDate: document.getElementById("cashflow-dueDate").value||null,
+applyCorrection: document.getElementById("cashflow-corr").checked,
+affectsPrincipal: document.getElementById("cashflow-
+principal").checked,
+};
+// validação simples por tipo
+if(kind==="monthly") {
+if(!payload.startDate||!payload.endDate) thrownewError("Mensal 
+precisa de início e fim.");
+} else{
+if(!payload.dueDate) thrownewError("Balão/Único precisa de 
+vencimento.");
+payload.startDate= null;
+56
+
+payload.endDate= null;
+}
+constdb= getDb();
+saveCashflowItem(db, sim.id, payload);
+clearCashflowForm();
+toast("Item salvo.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* ===========================
+   Botões utilitários
+   =========================== */
+document.getElementById("project-cancel").addEventListener("click",
+clearProjectForm);
+document.getElementById("sim-cancel").addEventListener("click",
+clearSimForm);
+document.getElementById("cashflow-cancel").addEventListener("click",
+clearCashflowForm);
+document.getElementById("cashflow-kind").addEventListener("change",
+syncCashflowKindVisibility);
+document.getElementById("fin-annualRate").addEventListener("input",
+updateFinRateHint);
+/* Flags */
+document.getElementById("btn-save-flags").addEventListener("click", ()=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constdb= getDb();
+saveSimFlags(db, sim.id, {
+hasQuadroResumo: document.getElementById("flag-quadro").checked,
+brokerFeeConfirmed: document.getElementById("flag-corretagem").checked,
+itbiProvisioned: document.getElementById("flag-itbi").checked,
+});
+toast("Checklist salvo.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+57
+
+/* Correção */
+document.getElementById("btn-save-corr").addEventListener("click", ()=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constdb= getDb();
+saveSimCorrection(db, sim.id, {
+enabled: document.getElementById("corr-enabled").checked,
+seriesId: document.getElementById("corr-series").value||null,
+note: document.getElementById("corr-note").value||"",
+});
+toast("Correção salva.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+document.getElementById("btn-corr-apply").addEventListener("click", ()=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constselectedSeriesId= document.getElementById("corr-series").value;
+if(!selectedSeriesId) thrownewError("Selecione uma série primeiro.");
+consttext= document.getElementById("corr-json").value.trim();
+if(!text) thrownewError("Cole um JSON no campo.");
+constparsed= JSON.parse(text);
+if(!parsed||typeofparsed!=="object") thrownewError("JSON 
+inválido.");
+// Validação mínima: chaves YYYY-MM e valores numéricos.
+constmonthlyPct= {};
+for(const[k, v] ofObject.entries(parsed)){
+if(!/^\d{4}-\d{2}$/.test(k))continue;
+constnum= Number(v);
+if(!Number.isFinite(num))continue;
+monthlyPct[k] = num;
+}
+constdb= getDb();
+constseries= getIndexSeries(db, selectedSeriesId);
+if(!series) thrownewError("Série não encontrada.");
+upsertIndexSeries(db, {
+...series,
+note: document.getElementById("corr-note").value||series.note,
+58
+
+monthlyPct: { ...(series.monthlyPct||{}),...monthlyPct},
+source: "manual",
+});
+toast("Série atualizada.");
+document.getElementById("corr-json").value= "";
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* Financiamento */
+document.getElementById("btn-save-fin").addEventListener("click", ()=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constdb= getDb();
+saveSimFinancing(db, sim.id, {
+enabled: document.getElementById("fin-enabled").checked,
+type: document.getElementById("fin-type").value,
+months: Number(document.getElementById("fin-months").value||1),
+annualRatePct: Number(document.getElementById("fin-annualRate").value
+||0),
+startDate: document.getElementById("fin-startDate").value||
+sim.deliveryDate,
+});
+toast("Financiamento salvo.");
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* Recalcular */
+document.getElementById("btn-recalc").addEventListener("click", ()=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constres= calcNow(sim);
+toast("Recalculado.");
+location.hash= "#results";
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* BCB fetch (opcional) */
+59
+
+document.getElementById("btn-bcb-fetch").addEventListener("click", async()
+=>{
+constsim= getSelectedSim();
+if(!sim) return;
+try{
+constcode= document.getElementById("bcb-seriesCode").value;
+conststart= document.getElementById("bcb-start").value||null;
+constend= document.getElementById("bcb-end").value||null;
+constarr= awaitfetchBcbSgsSeries(code, start, end);
+constmonthlyPct= sgsJsonToMonthlyPctMap(arr);
+constdb= getDb();
+constcreated= {
+id: null,
+name: `BCB/SGS ${code}`,
+note: `Importado do SGS • ${start||"—"} → ${end||"—"}`,
+source: "bcb_sgs",
+monthlyPct,
+};
+upsertIndexSeries(db, created);
+toast("Série do BCB salva.");
+// Atualizar dropdown e selecionar a nova série
+refreshDb();
+constall= listIndexSeries(state.db);
+constjustCreated= all.find((x) =>x.name===`BCB/SGS ${code}`);
+if(justCreated) {
+document.getElementById("corr-series").value= justCreated.id;
+document.getElementById("corr-note").value= justCreated.note||"";
+}
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+/* Export/Import (topbar) */
+document.getElementById("btn-export").addEventListener("click", ()=>{
+try{
+constjson= exportDbJson();
+downloadJson(json, "apto_sim_db_v1.json");
+toast("Export gerado.");
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+document.getElementById("btn-reset").addEventListener("click", ()=>{
+if(!confirm("Resetar para o exemplo? Isso apaga os dados atuais."))
+60
+
+return;
+try{
+resetDbToSeed();
+state.selectedProjectId= null;
+state.selectedSimId= null;
+state.lastResultsBySimId= {};
+toast("Resetado.");
+location.hash= "#projects";
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+document.getElementById("file-import").addEventListener("change", async(ev)
+=>{
+constfile= ev.target.files?.[0];
+if(!file) return;
+try{
+consttext= awaitfile.text();
+importDbJson(text);
+state.selectedProjectId= null;
+state.selectedSimId= null;
+state.lastResultsBySimId= {};
+toast("Importado com sucesso.");
+location.hash= "#projects";
+route();
+} catch(err) {
+alert(err.message||String(err));
+} finally{
+ev.target.value= "";
+}
+});
+/* Export/Import (Resultados) */
+document.getElementById("btn-export-inline").addEventListener("click", ()=>
+{
+document.getElementById("export-json").value= exportDbJson();
+toast("JSON gerado.");
+});
+document.getElementById("btn-copy-json").addEventListener("click", async()
+=>{
+consttext= document.getElementById("export-json").value.trim();
+if(!text) {
+alert("Gere o JSON primeiro.");
+return;
+}
+61
+
+awaitnavigator.clipboard.writeText(text);
+toast("Copiado.");
+});
+document.getElementById("btn-import-inline").addEventListener("click", ()=>
+{
+consttext= document.getElementById("import-json").value.trim();
+if(!text) {
+alert("Cole um JSON para importar.");
+return;
+}
+if(!confirm("Importar e substituir TODO o banco local?"))return;
+try{
+importDbJson(text);
+state.selectedProjectId= null;
+state.selectedSimId= null;
+state.lastResultsBySimId= {};
+toast("Importado com sucesso.");
+location.hash= "#projects";
+route();
+} catch(err) {
+alert(err.message||String(err));
+}
+});
+functiondownloadJson(text, filename) {
+constblob= newBlob([text],{ type: "application/json;charset=utf-8"});
+consturl= URL.createObjectURL(blob);
+consta = document.createElement("a");
+a.href= url;
+a.download= filename;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+}
+/* ===========================
+   Boot
+   =========================== */
+(functionboot(){
+// Se o seed tem um projeto e simulação, seleciona automaticamente para 
+facilitar primeira execução.
+constdb= getDb();
+if(db.projects?.length) state.selectedProjectId= db.projects[0].id;
+if(db.simulations?.length) state.selectedSimId= db.simulations[0].id;
+62
+
+// Pré-carrega FAQ
+document.getElementById("faq-content").innerHTML= FAQ_HTML;
+// Forms iniciais (datas default)
+if(!document.getElementById("sim-contractDate").value) {
+// sugestão: hoje
+consttoday= newDate();
+constiso= today.toISOString().slice(0, 10);
+document.getElementById("sim-contractDate").value= iso;
+document.getElementById("sim-deliveryDate").value= iso;
+}
+clearProjectForm();
+clearSimForm();
+clearCashflowForm();
+route();
+})();
+js/risks.js e js/render.js já incluídos acima
+(Arquivos completos já apresentados nas seções correspondentes.)
+Como rodar no VSCode Live Server
+Crie uma pasta (ex.: apto-sim) e coloque os arquivos exatamente na árvore mostrada.
+Abra a pasta no VSCode.
+Instale a extensão Live Server (se ainda não tiver).
+Clique com botão direito em index.html → Open with Live Server.
+O app abre no navegador e grava no localStorage na chave APTO_SIM_DB_V1.
+Lembrete: localStorage exige serialização e pode ter indisponibilidade em alguns contextos
+(como navegação privada). 
+https://developer .mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/import
+https://developer .mozilla.org/pt-BR/docs/Web/JavaScript/Reference/Statements/import
+https://developer .mozilla.org/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API
+https://developer .mozilla.org/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API
+https://repositorio.unb.br/bitstream/10482/43830/1/2022_LucianoOliveiradeMoraes.pdf
+https://repositorio.unb.br/bitstream/10482/43830/1/2022_LucianoOliveiradeMoraes.pdf
+https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13786.htm
+https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13786.htm
+https://portalibre.fgv.br/incc
+https://portalibre.fgv.br/incc
+https://developer .mozilla.org/en-US/docs/Web/API/Web_Storage_API/
+Using_the_Web_Storage_API
+https://developer .mozilla.org/en-US/docs/Web/API/Web_Storage_API/Using_the_Web_Storage_API
+1. 
+2. 
+3. 
+4. 
+5. 
+6
+1
+2
+3 10
+4 14
+5
+6 15
+63
+
+https://lgpd.tcm.sp.gov.br/Pagina/66309
+https://lgpd.tcm.sp.gov.br/Pagina/66309
+https://www.uel.br/projetos/matessencial/basico/financeira/amortiza.html
+https://www.uel.br/projetos/matessencial/basico/financeira/amortiza.html
+https://www.planalto.gov.br/ccivil_03/LEIS/L4591compilado.htm
+https://www.planalto.gov.br/ccivil_03/LEIS/L4591compilado.htm
+https://prefeitura.pbh.gov.br/fazenda/tributos/ITBI
+https://prefeitura.pbh.gov.br/fazenda/tributos/ITBI
+https://dadosabertos.bcb.gov.br/dataset/27803-sgs/resource/226d3f10-7d05-445d-a2a6-
+df62b7d48fd5
+https://dadosabertos.bcb.gov.br/dataset/27803-sgs/resource/226d3f10-7d05-445d-a2a6-df62b7d48fd5
+7 8
+9
+11 12
+13
+16
+64
